@@ -1,0 +1,22 @@
+=== JARVIS CRAZY GOD-MODE XO GAME (v2.0) ===
+
+🔥 WHAT WE'VE BUILT & ENHANCED:
+1. **Unbeatable God Mode (Minimax Algorithm)**: JARVIS calculates all possible future states recursively. Winning against God Mode is mathematically nearly impossible!
+2. **Cyberpunk Crazy Aesthetics**: Neon glowing cyan and pink grids, smooth animations with Framer Motion, victory confetti explosions, and live taunt commentary.
+3. **Multiple Difficulty Modes**: 
+   - NOOB (Random moves for easy play)
+   - HARD (Balanced strategy)
+   - GOD MODE (Pure Unbeatable Minimax + Chaos glitch events)
+4. **Live Scoreboard & Interactive Feedback**: Tracks wins, losses, draws, and reactive AI speech bubbles.
+
+🚀 HOW TO RUN IT LOCALLY:
+1. Open your terminal in VS Code.
+2. Navigate to the game folder:
+   cd C:\Users\avira\OneDrive\Desktop\Jarvis\xo-game
+3. Install dependencies:
+   npm install
+4. Run the development server:
+   npm run dev
+5. Open your browser at: http://localhost:3000
+
+Enjoy beating (or getting destroyed by) JARVIS in God Mode!

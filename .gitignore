@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+/.pnp
+.pnp.*
+
+# Environment variables and secrets
+.env
+.env.*
+*.env
+!.env.example
+
+# Next.js / React build outputs
+.next/
+out/
+build/
+dist/
+
+# Jarvis runtime sandbox and temporary logs
+.jarvis_sandbox/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# OS and IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.tsbuildinfo

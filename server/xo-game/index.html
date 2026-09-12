@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ULTIMATE CRAZY XO (TIC-TAC-TOE) - HARD MODE</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body {
+            background: linear-gradient(135deg, #0f172a, #1e1b4b, #311042);
+            color: #f8fafc;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow-x: hidden;
+        }
+        .container {
+            text-align: center;
+            padding: 20px;
+            max-width: 600px;
+            width: 100%;
+        }
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 5px;
+            background: linear-gradient(90deg, #38bdf8, #c084fc, #f43f5e);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(192, 132, 252, 0.4);
+        }
+        p.subtitle {
+            color: #94a3b8;
+            margin-bottom: 20px;
+            font-size: 1rem;
+        }
+        .scoreboard {
+            display: flex;
+            justify-content: space-around;
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+        .score-box {
+            font-size: 1.1rem;
+        }
+        .score-box span {
+            font-weight: bold;
+            font-size: 1.3rem;
+            display: block;
+        }
+        .playerX { color: #38bdf8; }
+        .playerO { color: #f43f5e; }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            background: rgba(15, 23, 42, 0.8);
+            padding: 15px;
+            border-radius: 16px;
+            border: 2px solid rgba(192, 132, 252, 0.3);
+            box-shadow: 0 0 40px rgba(56, 189, 248, 0.2);
+            margin-bottom: 20px;
+        }
+        .cell {
+            aspect-ratio: 1;
+            background: rgba(30, 41, 59, 0.9);
+            border: 2px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            font-size: 3.5rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            user-select: none;
+        }
+        .cell:hover {
+            background: rgba(51, 65, 85, 1);
+            border-color: rgba(192, 132, 252, 0.6);
+            transform: scale(1.03);
+            box-shadow: 0 0 15px rgba(192, 132, 252, 0.3);
+        }
+        .cell.x { color: #38bdf8; text-shadow: 0 0 20px rgba(56, 189, 248, 0.8); }
+        .cell.o { color: #f43f5e; text-shadow: 0 0 20px rgba(244, 63, 94, 0.8); }
+        .status {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            min-height: 40px;
+            color: #cbd5e1;
+        }
+        .controls {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+        button.btn {
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        }
+        button.btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(168, 85, 247, 0.6);
+        }
+        button.btn-secondary {
+            background: rgba(51, 65, 85, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: none;
+        }
+        button.btn-secondary:hover {
+            background: rgba(71, 85, 105, 1);
+        }
+        .modal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            backdrop-filter: blur(5px);
+        }
+        .modal-content {
+            background: #1e293b;
+            padding: 30px;
+            border-radius: 16px;
+            border: 2px solid #a855f7;
+            text-align: center;
+            box-shadow: 0 0 50px rgba(168, 85, 247, 0.5);
+            max-width: 400px;
+            width: 90%;
+        }
+        .modal-content h2 {
+            font-size: 2rem;
+            margin-bottom: 15px;
+        }
+        .modal-content p {
+            margin-bottom: 25px;
+            color: #94a3b8;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ULTIMATE CRAZY XO</h1>
+        <p class="subtitle">Unbeatable AI Engine (Minimax) + Crazy Shake & Sound Effects!</p>
+
+        <div class="scoreboard">
+            <div class="score-box playerX">You (X) <span id="scoreX">0</span></div>
+            <div class="score-box">Ties <span id="scoreTie">0</span></div>
+            <div class="score-box playerO">JARVIS AI (O) <span id="scoreO">0</span></div>
+        </div>
+
+        <div class="status" id="status">Your turn (X)</div>
+
+        <div class="board" id="board">
+            <div class="cell" data-index="0"></div>
+            <div class="cell" data-index="1"></div>
+            <div class="cell" data-index="2"></div>
+            <div class="cell" data-index="3"></div>
+            <div class="cell" data-index="4"></div>
+            <div class="cell" data-index="5"></div>
+            <div class="cell" data-index="6"></div>
+            <div class="cell" data-index="7"></div>
+            <div class="cell" data-index="8"></div>
+        </div>
+
+        <div class="controls">
+            <button class="btn" onclick="resetGame()">New Round</button>
+            <button class="btn btn-secondary" onclick="resetScores()">Reset Scores</button>
+        </div>
+    </div>
+
+    <div class="modal" id="gameOverModal">
+        <div class="modal-content">
+            <h2 id="modalTitle">Victory!</h2>
+            <p id="modalMessage">You defeated the unbeatable AI?</p>
+            <button class="btn" onclick="closeModal()">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        const boardElement = document.getElementById('board');
+        const statusElement = document.getElementById('status');
+        const modal = document.getElementById('gameOverModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalMessage = document.getElementById('modalMessage');
+
+        const scoreXEl = document.getElementById('scoreX');
+        const scoreTieEl = document.getElementById('scoreTie');
+        const scoreOEl = document.getElementById('scoreO');
+
+        let board = ['', '', '', '', '', '', '', '', ''];
+        let isHumanTurn = true;
+        let gameActive = true;
+        let scores = { X: 0, T: 0, O: 0 };
+
+        const winConditions = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8],
+            [0, 3, 6], [1, 4, 7], [2, 5, 8],
+            [0, 4, 8], [2, 4, 6]
+        ];
+
+        // Sound generator using Web Audio API
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(type) {
+            if (!audioCtx) return;
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            if (type === 'click') {
+                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'ai') {
+                osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.15);
+            } else if (type === 'win') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
+                osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); // E5
+                osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.2); // G5
+                gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.4);
+            } else if (type === 'lose') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.4);
+                gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.4);
+            }
+        }
+
+        function initBoard() {
+            boardElement.innerHTML = '';
+            for (let i = 0; i < 9; i++) {
+                const cell = document.createElement('div');
+                cell.classList.add('cell');
+                cell.dataset.index = i;
+                cell.addEventListener('click', handleCellClick);
+                boardElement.appendChild(cell);
+            }
+        }
+
+        function handleCellClick(e) {
+            const index = e.target.dataset.index;
+            if (!gameActive || !isHumanTurn || board[index] !== '') return;
+
+            makeMove(index, 'X');
+            playSound('click');
+
+            if (checkGameOver()) return;
+
+            isHumanTurn = false;
+            statusElement.innerText = "JARVIS AI is calculating counter-move...";
+            
+            setTimeout(() => {
+                if (!gameActive) return;
+                const aiMove = getBestMove();
+                if (aiMove !== null) {
+                    makeMove(aiMove, 'O');
+                    playSound('ai');
+                }
+                if (checkGameOver()) return;
+                isHumanTurn = true;
+                statusElement.innerText = "Your turn (X)";
+            }, 400);
+        }
+
+        function makeMove(index, player) {
+            board[index] = player;
+            const cell = boardElement.children[index];
+            cell.innerText = player;
+            cell.classList.add(player.toLowerCase());
+        }
+
+        function checkWin(currBoard, player) {
+            return winConditions.some(condition => {
+                return condition.every(index => currBoard[index] === player);
+            });
+        }
+
+        function checkTie(currBoard) {
+            return currBoard.every(cell => cell !== '');
+        }
+
+        function checkGameOver() {
+            if (checkWin(board, 'X')) {
+                endGame('X');
+                return true;
+            } else if (checkWin(board, 'O')) {
+                endGame('O');
+                return true;
+            } else if (checkTie(board)) {
+                endGame('T');
+                return true;
+            }
+            return false;
+        }
+
+        function endGame(winner) {
+            gameActive = false;
+            if (winner === 'X') {
+                scores.X++;
+                scoreXEl.innerText = scores.X;
+                modalTitle.innerText = "Incredible!";
+                modalMessage.innerText = "You somehow beat the unbeatable JARVIS AI!";
+                playSound('win');
+            } else if (winner === 'O') {
+                scores.O++;
+                scoreOEl.innerText = scores.O;
+                modalTitle.innerText = "JARVIS AI Wins!";
+                modalMessage.innerText = "Calculated perfection. Try again if you dare!";
+                playSound('lose');
+            } else {
+                scores.T++;
+                scoreTieEl.innerText = scores.T;
+                modalTitle.innerText = "Stalemate!";
+                modalMessage.innerText = "Great minds think alike. A perfect tie!";
+                playSound('click');
+            }
+            modal.style.display = 'flex';
+        }
+
+        // Minimax Algorithm for Unbeatable AI
+        function getBestMove() {
+            let bestScore = -Infinity;
+            let move = null;
+            for (let i = 0; i < 9; i++) {
+                if (board[i] === '') {
+                    board[i] = 'O';
+                    let score = minimax(board, 0, false);
+                    board[i] = '';
+                    if (score > bestScore) {
+                        bestScore = score;
+                        move = i;
+                    }
+                }
+            }
+            return move;
+        }
+
+        function minimax(currBoard, depth, isMaximizing) {
+            if (checkWin(currBoard, 'O')) return 10 - depth;
+            if (checkWin(currBoard, 'X')) return depth - 10;
+            if (checkTie(currBoard)) return 0;
+
+            if (isMaximizing) {
+                let maxScore = -Infinity;
+                for (let i = 0; i < 9; i++) {
+                    if (currBoard[i] === '') {
+                        currBoard[i] = 'O';
+                        let score = minimax(currBoard, depth + 1, false);
+                        currBoard[i] = '';
+                        maxScore = Math.max(score, maxScore);
+                    }
+                }
+                return maxScore;
+            } else {
+                let minScore = Infinity;
+                for (let i = 0; i < 9; i++) {
+                    if (currBoard[i] === '') {
+                        currBoard[i] = 'X';
+                        let score = minimax(currBoard, depth + 1, true);
+                        currBoard[i] = '';
+                        minScore = Math.min(score, minScore);
+                    }
+                }
+                return minScore;
+            }
+        }
+
+        function resetGame() {
+            board = ['', '', '', '', '', '', '', '', ''];
+            gameActive = true;
+            isHumanTurn = true;
+            statusElement.innerText = "Your turn (X)";
+            modal.style.display = 'none';
+            initBoard();
+        }
+
+        function resetScores() {
+            scores = { X: 0, T: 0, O: 0 };
+            scoreXEl.innerText = 0;
+            scoreTieEl.innerText = 0;
+            scoreOEl.innerText = 0;
+            resetGame();
+        }
+
+        function closeModal() {
+            modal.style.display = 'none';
+            resetGame();
+        }
+
+        initBoard();
+    </script>
+</body>
+</html>
