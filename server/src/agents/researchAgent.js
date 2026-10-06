@@ -19,7 +19,7 @@ Return a structured summary of findings with source references if available.`),
     ];
 
     try {
-      const response = await modelRouter.invokeWithFallback(messages, this.tools, 'fast', 0.2);
+      const response = await modelRouter.invokeWithFallback(messages, this.tools, 'fast', 0.2, { taskType: 'research' });
       return response.content || "Research completed cleanly.";
     } catch (err) {
       console.error("[RESEARCH_AGENT] Error:", err.message);

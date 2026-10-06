@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { fetchApi } from "@/lib/api";
 import { Database, Plus, Trash2, Search, Brain } from "lucide-react";
 
 export type MemoryFact = {
@@ -33,9 +34,8 @@ export default function MemoryMatrixView({ facts, preferences, onRefresh }: Memo
     if (!newKey.trim() || !newValue.trim()) return;
 
     try {
-      await fetch("http://localhost:4000/api/memory", {
+      await fetchApi("/api/memory", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "save", key: newKey.trim(), value: newValue.trim() })
       });
       setNewKey("");
@@ -49,9 +49,8 @@ export default function MemoryMatrixView({ facts, preferences, onRefresh }: Memo
 
   const handleDeleteFact = async (key: string) => {
     try {
-      await fetch("http://localhost:4000/api/memory", {
+      await fetchApi("/api/memory", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "delete", key })
       });
       onRefresh();

@@ -413,7 +413,7 @@ Return ONLY valid JSON in this format:
 
     let missionData;
     try {
-      const planRes = await modelRouter.invokeWithFallback(planPrompt, [], 'reasoning', 0.1);
+      const planRes = await modelRouter.invokeWithFallback(planPrompt, [], 'reasoning', 0.1, { taskType: 'planning' });
       const rawText = typeof planRes.content === 'string' ? planRes.content : JSON.stringify(planRes.content);
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
       missionData = jsonMatch ? JSON.parse(jsonMatch[0]) : {
@@ -441,6 +441,7 @@ Return ONLY valid JSON in this format:
 
     // 3. ACT & EXECUTE SUBTASKS PARALLEL & SAFELY
     const parallelResult = await parallelRunner.executeMissionParallel(mission.id, contextStr, this);
+    modelRouter.recordMissionOutcome(parallelResult.success !== false);
 
     const isZeroFriction = currentMode === OPERATING_MODES.ZERO_FRICTION;
     const finalSummary = isZeroFriction
@@ -471,7 +472,7 @@ Return ONLY valid JSON in this format:
     const currentMode = securityGuard.getOperatingMode();
 
     const tools = getAllTools();
-    const systemPrompt = `You are JARVIS, an exceptionally advanced, direct, and autonomous personal AI Operating System.
+    const systemPrompt = `You are JARVIS, an exceptionally advanced, direct, and autonomous personal AI Operating System powered by Gemini 3.8.
 Current Operating Mode: ${currentMode}.
 
 You possess complete control over tools: terminal, file operations, web search, web fetch, code sandbox execution, document writing in Notepad, media playback, git, system volume, process management, computer vision screen capture, UI inspection, mouse/keyboard automation, knowledge vault, and background tasks.
@@ -501,22 +502,45 @@ ZERO-FRICTION OPERATIONAL RULES:
 
       let msg;
       try {
-        msg = await modelRouter.invokeWithFallback(messages, tools, 'fast', 0.2);
+        msg = await modelRouter.invokeWithFallback(messages, tools, 'fast', 0.2, { taskType: 'orchestration' });
       } catch (err) {
+        const errMsg = err?.message || '';
+        if (errMsg.includes('API_KEY_INVALID') || errMsg.includes('API key not valid') || errMsg.includes('KEY_MISSING')) {
+          console.error("[ORCHESTRATOR] Authentication rejection from Gemini API:", errMsg);
+          this.setState('ERROR', { error: 'Gemini authentication failed. Valid GEMINI_API_KEY required.' });
+          setTimeout(() => this.setState('IDLE'), 2000);
+          return {
+            text: `[JARVIS][RED ALERT]\nGemini authentication failed.\nProvider: Google\nModel: gemini-3.8-flash\nReason: API credential rejected (API_KEY_INVALID). Please ensure a valid GEMINI_API_KEY is configured in your server environment.`,
+            spokenText: "Gemini authentication failed. Please update your API key in the environment.",
+            voiceProsody: voiceProfile.getProsody("red alert", "ERROR"),
+            action: null,
+            emotion: "red alert"
+          };
+        }
+
         console.warn(`[ORCHESTRATOR] Standard tool invocation failed (${err.message}). Attempting safe degraded mode...`);
         try {
-          msg = await modelRouter.invokeWithFallback(messages, [], 'fast', 0.2);
+          msg = await modelRouter.invokeWithFallback(messages, [], 'fast', 0.2, { taskType: 'orchestration' });
         } catch (fallbackErr) {
           console.error("[ORCHESTRATOR] LLM Invocation Error:", fallbackErr.message);
           this.setState('ERROR', { error: fallbackErr.message });
           setTimeout(() => this.setState('IDLE'), 2000);
-          const errText = `[RED ALERT] Neural link disruption: ${fallbackErr.message}`;
+
+          const fallbackMsg = (fallbackErr?.message || '').toLowerCase();
+          const isHighDemand = fallbackMsg.includes('503') || fallbackMsg.includes('high demand') || fallbackMsg.includes('service unavailable') || fallbackMsg.includes('overloaded') || fallbackMsg.includes('429');
+
+          const errText = isHighDemand
+            ? `[SYSTEM STABLE]\nGoogle Gemini servers are currently experiencing peak demand (503 Service Unavailable).\n\nSpikes in demand are temporary. Auto-retry has completed. Please wait a few seconds and try your request again.`
+            : `[JARVIS][RED ALERT]\nGemini request rejected.\nProvider: Google\nModel: gemini-3.8-flash\nReason: ${fallbackErr.message}`;
+
           return {
             text: errText,
-            spokenText: "We encountered a neural link disruption. I've logged the error and stabilized the core.",
-            voiceProsody: voiceProfile.getProsody("red alert", "ERROR"),
+            spokenText: isHighDemand 
+              ? "Google Gemini is currently experiencing a temporary demand spike. Please try again in a moment."
+              : "Gemini request was rejected. I have logged the diagnostic.",
+            voiceProsody: voiceProfile.getProsody(isHighDemand ? "system stable" : "red alert", "ERROR"),
             action: null,
-            emotion: "red alert"
+            emotion: isHighDemand ? "golden glow" : "red alert"
           };
         }
       }

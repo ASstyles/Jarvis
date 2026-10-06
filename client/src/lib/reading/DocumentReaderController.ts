@@ -1,6 +1,7 @@
 "use client";
 
 import { voiceEngine } from "../voice/VoiceEngine";
+import { fetchApi } from "../api";
 
 export interface ReadingSegment {
   index: number;
@@ -77,9 +78,8 @@ export class DocumentReaderController {
 
   private async syncWithBackend(state: ReadingSessionState) {
     try {
-      await fetch("http://localhost:4000/api/reading/sync", {
+      await fetchApi("/api/reading/sync", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(state)
       });
     } catch (_) {}

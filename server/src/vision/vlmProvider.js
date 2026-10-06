@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const MODEL_CONFIG = require("../config/modelConfig");
+
 
 class VLMProvider {
   constructor() {
@@ -45,7 +47,8 @@ class VLMProvider {
     // Try Remote VLM if API Key exists
     if (this.genAI && this.primaryProvider !== 'local_only') {
       try {
-        const model = this.genAI.getGenerativeModel({ model: process.env.GEMINI_VISION_MODEL || "gemini-2.5-flash" });
+        const visionModel = MODEL_CONFIG.GEMINI.VISION;
+        const model = this.genAI.getGenerativeModel({ model: visionModel });
         const imagePart = {
           inlineData: {
             data: imageBase64,

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api";
 import {
   Terminal, Cpu, Database, Play, CheckCircle2, ShieldCheck, Flame,
   RefreshCw, Layers, Bug, Zap, Eye, Mic, Server, Activity, ArrowRight, XCircle,
@@ -45,30 +46,28 @@ export default function DeveloperMode() {
   const fetchData = async () => {
     try {
       const [wmRes, statusRes, bmRes, sbRes, compRes, voiceRes, visRes, readRes] = await Promise.all([
-        fetch("http://localhost:4000/api/world"),
-        fetch("http://localhost:4000/api/status"),
-        fetch("http://localhost:4000/api/benchmark"),
-        fetch("http://localhost:4000/api/sandbox"),
-        fetch("http://localhost:4000/api/compute/status"),
-        fetch("http://localhost:4000/api/voice/status"),
-        fetch("http://localhost:4000/api/vision/status"),
-        fetch("http://localhost:4000/api/reading/session")
+        fetchApi("/api/world"),
+        fetchApi("/api/status"),
+        fetchApi("/api/benchmark"),
+        fetchApi("/api/sandbox"),
+        fetchApi("/api/compute/status"),
+        fetchApi("/api/voice/status"),
+        fetchApi("/api/vision/status"),
+        fetchApi("/api/reading/session")
       ]);
 
-      if (wmRes.ok) setWorldModel(await wmRes.json());
-      if (statusRes.ok) {
-        const s = await statusRes.json();
-        setModelStats(s.modelStats);
+      if (wmRes.ok && wmRes.data) setWorldModel(wmRes.data);
+      if (statusRes.ok && statusRes.data) {
+        setModelStats(statusRes.data.modelStats);
       }
-      if (bmRes.ok) setBenchmark(await bmRes.json());
-      if (sbRes.ok) {
-        const d = await sbRes.json();
-        setExperiments(d.experiments || []);
+      if (bmRes.ok && bmRes.data) setBenchmark(bmRes.data);
+      if (sbRes.ok && sbRes.data) {
+        setExperiments(sbRes.data.experiments || []);
       }
-      if (compRes.ok) setClusterStatus(await compRes.json());
-      if (voiceRes.ok) setVoiceTelemetry(await voiceRes.json());
-      if (visRes.ok) setVisionStatus(await visRes.json());
-      if (readRes.ok) setReadingTelemetry(await readRes.json());
+      if (compRes.ok && compRes.data) setClusterStatus(compRes.data);
+      if (voiceRes.ok && voiceRes.data) setVoiceTelemetry(voiceRes.data);
+      if (visRes.ok && visRes.data) setVisionStatus(visRes.data);
+      if (readRes.ok && readRes.data) setReadingTelemetry(readRes.data);
     } catch (_) {}
   };
 
@@ -81,12 +80,12 @@ export default function DeveloperMode() {
   const handleTestGrounding = async () => {
     setGroundingLoading(true);
     try {
-      const res = await fetch("http://localhost:4000/api/vision/ground", {
+      const res = await fetchApi("/api/vision/ground", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: groundQuery })
       });
-      if (res.ok) setGroundResult(await res.json());
+      if (res.ok) setGroundResult(res.data);
+      else setGroundResult({ error: res.error });
     } catch (err: any) {
       setGroundResult({ error: err.message });
     }
@@ -96,9 +95,8 @@ export default function DeveloperMode() {
   const handleDispatchJob = async () => {
     setDispatchLoading(true);
     try {
-      await fetch("http://localhost:4000/api/compute/dispatch", {
+      await fetchApi("/api/compute/dispatch", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: jobTitle, type: jobType })
       });
       fetchData();
@@ -109,11 +107,10 @@ export default function DeveloperMode() {
   const handleRunBenchmark = async () => {
     setBenchmarkLoading(true);
     try {
-      const res = await fetch("http://localhost:4000/api/benchmark/run", { method: "POST" });
-      if (res.ok) {
-        const data = await res.json();
-        setBenchmarkResult(data);
-        setBenchmark(data);
+      const res = await fetchApi("/api/benchmark/run", { method: "POST" });
+      if (res.ok && res.data) {
+        setBenchmarkResult(res.data);
+        setBenchmark(res.data);
       }
     } catch (_) {}
     setBenchmarkLoading(false);
@@ -123,21 +120,19 @@ export default function DeveloperMode() {
     setSandboxRunning(true);
     setSandboxOutput("Initializing isolated sandbox workspace...");
     try {
-      const cRes = await fetch("http://localhost:4000/api/sandbox/experiment", {
+      const cRes = await fetchApi<any>("/api/sandbox/experiment", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: sandboxExpName })
       });
-      const cData = await cRes.json();
-      const runId = cData.experiment.id;
+      const cData = cRes.data;
+      const runId = cData?.experiment?.id;
 
-      const rRes = await fetch("http://localhost:4000/api/sandbox/run", {
+      const rRes = await fetchApi<any>("/api/sandbox/run", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ runId, command: sandboxCmd })
       });
-      const rData = await rRes.json();
-      setSandboxOutput(`Experiment ${runId} result:\n\n[STDOUT]:\n${rData.stdout || '(none)'}\n\n[STDERR]:\n${rData.stderr || '(none)'}`);
+      const rData = rRes.data;
+      setSandboxOutput(`Experiment ${runId} result:\n\n[STDOUT]:\n${rData?.stdout || '(none)'}\n\n[STDERR]:\n${rData?.stderr || '(none)'}`);
       fetchData();
     } catch (err: any) {
       setSandboxOutput(`Sandbox Error: ${err.message}`);
@@ -148,14 +143,12 @@ export default function DeveloperMode() {
   const handleStartGayatriReading = async () => {
     setReaderActionStatus("Initializing reading session for Gayatri Letter...");
     try {
-      const res = await fetch("http://localhost:4000/api/reading/start", {
+      const res = await fetchApi<any>("/api/reading/start", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ target: "Gayatri_Letter.txt" })
       });
-      if (res.ok) {
-        const data = await res.json();
-        setReaderActionStatus(`Session ${data.session.sessionId} started: "${data.document.title}" (${data.session.totalSegments} segments).`);
+      if (res.ok && res.data) {
+        setReaderActionStatus(`Session ${res.data.session.sessionId} started: "${res.data.document.title}" (${res.data.session.totalSegments} segments).`);
         fetchData();
       }
     } catch (err: any) {
@@ -166,24 +159,22 @@ export default function DeveloperMode() {
   const handleSimulateFalseCompletionRejection = async () => {
     setReaderActionStatus("Simulating false completion rejection test (incomplete segments)...");
     try {
-      await fetch("http://localhost:4000/api/reading/start", {
+      await fetchApi("/api/reading/start", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ target: "Gayatri_Letter.txt" })
       });
       
       // Update only segment 1
-      await fetch("http://localhost:4000/api/reading/segment", {
+      await fetchApi("/api/reading/segment", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ segmentIndex: 1, status: "COMPLETED" })
       });
 
       // Call verify completion -> MUST FAIL
-      const verifyRes = await fetch("http://localhost:4000/api/reading/verify", { method: "POST" });
-      const verifyData = await verifyRes.json();
+      const verifyRes = await fetchApi<any>("/api/reading/verify", { method: "POST" });
+      const verifyData = verifyRes.data;
 
-      if (!verifyData.verified) {
+      if (verifyData && !verifyData.verified) {
         setReaderActionStatus(`[SUCCESS] False completion successfully blocked! Verified: ${verifyData.verified ? 'YES' : 'NO'}. Engine response: "${verifyData.message}"`);
       } else {
         setReaderActionStatus(`[FAILED BUG] Engine improperly reported complete!`);
@@ -196,13 +187,12 @@ export default function DeveloperMode() {
 
   const handleControlReader = async (command: string) => {
     try {
-      const res = await fetch("http://localhost:4000/api/reading/control", {
+      const res = await fetchApi<any>("/api/reading/control", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ command })
       });
-      const data = await res.json();
-      setReaderActionStatus(`Command [${command}]: ${data.result?.spokenAcknowledgment || data.result?.message || 'Executed'}`);
+      const data = res.data;
+      setReaderActionStatus(`Command [${command}]: ${data?.result?.spokenAcknowledgment || data?.result?.message || 'Executed'}`);
       fetchData();
     } catch (err: any) {
       setReaderActionStatus(`Control Error: ${err.message}`);

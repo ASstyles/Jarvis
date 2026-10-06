@@ -1,6 +1,7 @@
 "use client";
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { voiceEngine, VoiceProsody } from '@/lib/voice/VoiceEngine';
+import { fetchApi } from '@/lib/api';
 
 export const useSpeech = (options?: { onError?: (error: string) => void }) => {
   const [isListening, setIsListening] = useState(false);
@@ -39,6 +40,9 @@ export const useSpeech = (options?: { onError?: (error: string) => void }) => {
     if (voiceEngine) {
       voiceEngine.interrupt();
     }
+    try {
+      fetchApi('/api/voice/interrupt', { method: 'POST', body: JSON.stringify({ reason: 'User manual interrupt' }) }).catch(() => {});
+    } catch (_) {}
   }, []);
 
   const toggleListening = useCallback(() => {
@@ -51,6 +55,9 @@ export const useSpeech = (options?: { onError?: (error: string) => void }) => {
       // Natural Interruption: User starts speaking -> Stop AI speech immediately
       if (voiceEngine && voiceEngine.isSpeaking) {
         voiceEngine.interrupt();
+        try {
+          fetchApi('/api/voice/interrupt', { method: 'POST', body: JSON.stringify({ reason: 'Voice barge-in' }) }).catch(() => {});
+        } catch (_) {}
       }
 
       setTranscript("");

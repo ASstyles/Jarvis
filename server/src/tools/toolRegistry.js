@@ -14,7 +14,7 @@ const { systemVolumeTool, systemPowerTool } = require("./systemOps");
 const { manageProcessTool, readActiveWindowTool } = require("./appOps");
 const { launchGameverseGameTool } = require("./gameOps");
 
-// JARVIS 2.0 Extended Ops
+// JARVIS Computer Use Ops
 const {
   captureScreenTool,
   inspectUiElementsTool,
@@ -40,7 +40,7 @@ const {
   ingestVaultDocumentTool
 } = require("./vaultOps");
 
-// JARVIS 3.0 Visual Perception & Distributed Compute Ops
+// JARVIS Visual Perception & Distributed Compute Ops
 const {
   groundUiElementTool,
   clickSemanticElementTool,
@@ -53,6 +53,34 @@ const {
   queryComputeFabricTool,
   manageDistributedJobTool
 } = require("./computeOps");
+
+// Imported from adewaskar: Agent-Controlled UI & Blade System
+const {
+  uiThemeTool,
+  uiReactorTool,
+  uiOrbitTool,
+  uiChromeTool,
+  uiEffectTool,
+  uiResetTool,
+  displayTool,
+  bladeTool
+} = require("./uiOps");
+
+// Imported from adewaskar: Authenticated Chrome Browser Control
+const {
+  chromeStatusTool,
+  chromeNavigateTool,
+  chromeScreenshotTool,
+  chromeContentTool
+} = require("../browser/chromeBridge");
+
+// Imported from adewaskar: Webcam Vision & Temporal Rolling Buffer
+const {
+  lookTool,
+  watchTool
+} = require("../vision/cameraVision");
+
+const { mcpManager } = require("../mcp/mcpManager");
 
 // Memory tools tied to MemoryMatrix 2.0
 const saveMemoryTool = tool(async ({ key, value, importance = 3, category = 'fact' }) => {
@@ -84,8 +112,8 @@ const recallMemoryTool = tool(async ({ key }) => {
   })
 });
 
-const allTools = [
-  // File Ops
+const coreTools = [
+  // File Ops (Hardened)
   readFileTool,
   listDirectoryTool,
   manageFilesTool,
@@ -94,11 +122,11 @@ const allTools = [
   saveMemoryTool,
   recallMemoryTool,
 
-  // Terminal & Execution Ops
+  // Terminal & Isolated Execution Ops
   runTerminalCommandTool,
   executeCodeSandboxTool,
 
-  // Web Ops
+  // Network & Web Ops (SSRF-Guarded)
   searchWebTool,
   openUrlTool,
   webFetchTool,
@@ -141,25 +169,47 @@ const allTools = [
   queryKnowledgeVaultTool,
   ingestVaultDocumentTool,
 
-  // JARVIS 3.0 Visual Perception & Semantic Grounding
+  // Visual Perception & Grounding
   groundUiElementTool,
   clickSemanticElementTool,
   readScreenTextTool,
   visuallyVerifyActionTool,
 
-  // JARVIS 3.0 Distributed Compute Fabric
+  // Compute Fabric
   dispatchDistributedJobTool,
   queryComputeFabricTool,
   manageDistributedJobTool,
 
   // Game Ops
-  launchGameverseGameTool
+  launchGameverseGameTool,
+
+  // Agent-Controlled UI Tools (adewaskar)
+  uiThemeTool,
+  uiReactorTool,
+  uiOrbitTool,
+  uiChromeTool,
+  uiEffectTool,
+  uiResetTool,
+  displayTool,
+  bladeTool,
+
+  // Authenticated Chrome Tools (adewaskar)
+  chromeStatusTool,
+  chromeNavigateTool,
+  chromeScreenshotTool,
+  chromeContentTool,
+
+  // Camera & Temporal Buffer Tools (adewaskar)
+  lookTool,
+  watchTool
 ];
 
 const { validateToolsForGemini } = require("./toolValidator");
 
 function getAllTools() {
-  const validated = validateToolsForGemini(allTools);
+  const mcpTools = mcpManager.getTools();
+  const combined = [...coreTools, ...mcpTools];
+  const validated = validateToolsForGemini(combined);
   try {
     worldModel.updateAvailableTools(validated.map(t => t.name));
   } catch (_) {}
@@ -167,7 +217,8 @@ function getAllTools() {
 }
 
 function getToolByName(name) {
-  return allTools.find(t => t.name === name);
+  const all = getAllTools();
+  return all.find(t => t.name === name);
 }
 
 module.exports = {

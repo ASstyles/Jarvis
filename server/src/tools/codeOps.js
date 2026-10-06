@@ -1,36 +1,42 @@
 const { tool } = require("@langchain/core/tools");
 const { z } = require("zod");
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
-const { exec } = require('child_process');
+const { executeInSandbox } = require('../sandbox/isolatedSandbox');
 
-const executeCodeSandboxTool = tool(async ({ language, code }) => {
-  return new Promise((resolve) => {
-    const tmpDir = os.tmpdir();
-    const ext = language.toLowerCase() === 'python' ? 'py' : 'js';
-    const filePath = path.join(tmpDir, `jarvis_exec_${Date.now()}.${ext}`);
+/**
+ * Isolated Code Sandbox Tool
+ * Executes JS in an isolated Worker thread and Python in a dedicated, credential-stripped process.
+ */
 
-    fs.writeFileSync(filePath, code, 'utf-8');
+const executeCodeSandboxTool = tool(async ({ language, code, timeoutMs = 15000 }) => {
+  try {
+    const outcome = await executeInSandbox(language, code, { timeoutMs });
 
-    const cmd = ext === 'py' ? `python "${filePath}"` : `node "${filePath}"`;
+    if (outcome.status === 'TIMEOUT') {
+      return `Sandbox Execution Timed Out (${outcome.durationMs}ms):\n${outcome.stderr}`;
+    }
 
-    exec(cmd, { timeout: 15000 }, (error, stdout, stderr) => {
-      // Clean up temp file
-      try { fs.unlinkSync(filePath); } catch (_) {}
+    if (outcome.status === 'ERROR') {
+      return `Sandbox Execution Error (${language}, ${outcome.durationMs}ms):\n${outcome.stderr || outcome.stdout}`;
+    }
 
-      if (error) {
-        return resolve(`Execution Error (${language}):\n${stderr || error.message}`);
-      }
-      resolve(`Sandbox Output:\n${stdout.trim() || "Executed successfully with no console output."}`);
-    });
-  });
+    let output = `Sandbox Output (${language}, ${outcome.durationMs}ms):\n`;
+    if (outcome.stdout) output += outcome.stdout;
+    if (outcome.result !== undefined && outcome.result !== null) output += `\nReturn Value: ${outcome.result}`;
+    if (outcome.artifacts && outcome.artifacts.length) {
+      output += `\nGenerated Artifacts: ${outcome.artifacts.join(', ')}`;
+    }
+
+    return output.trim() || "Executed successfully with no console output.";
+  } catch (err) {
+    return `Sandbox Failure: ${err.message}`;
+  }
 }, {
   name: "execute_code_sandbox",
-  description: "Execute a JavaScript (Node.js) or Python snippet in an isolated local sandbox and return stdout/stderr.",
+  description: "Execute a JavaScript (Node.js) or Python snippet in a genuinely isolated worker/sandbox environment.",
   schema: z.object({
     language: z.enum(["javascript", "js", "python", "py"]).describe("Programming language."),
-    code: z.string().describe("Executable code content.")
+    code: z.string().describe("Executable code content."),
+    timeoutMs: z.number().optional().default(15000).describe("Optional execution timeout in milliseconds.")
   })
 });
 

@@ -1,7 +1,13 @@
 "use client";
 
-import { useState, useEffect, FormEvent } from "react";
-import JarvisOrb from "@/components/JarvisOrb";
+import { useState, useEffect, useRef, FormEvent, useCallback } from "react";
+import JarvisVisualCore from "@/components/reactor/JarvisVisualCore";
+import Blades, { BladeData } from "@/components/blades/Blades";
+import Boot from "@/components/boot/Boot";
+import Ignition from "@/components/boot/Ignition";
+import Diagnostics from "@/components/hud/Diagnostics";
+import Pointer from "@/components/hud/Pointer";
+import GestureGuide from "@/components/hud/GestureGuide";
 import TerminalLog, { LogEntry } from "@/components/TerminalLog";
 import MissionTracker, { Mission } from "@/components/MissionTracker";
 import ToolActivityFeed, { ToolLogItem } from "@/components/ToolActivityFeed";
@@ -15,11 +21,13 @@ import KnowledgeVaultView from "@/components/KnowledgeVaultView";
 import GameverseHub from "@/gameverse/components/GameverseHub";
 import DocumentReaderHUD from "@/components/DocumentReaderHUD";
 import { documentReaderController, ReadingSessionState } from "@/lib/reading/DocumentReaderController";
+import { enableHands, disableHands, handsRunning } from "@/lib/hands/hands";
+import { fetchApi, getAuthToken, CONFIG } from "@/lib/api";
 
 import {
   Mic, Search, LogOut, ShieldAlert, Cpu, Flag, Brain, Gamepad2,
   LayoutDashboard, Shield, Terminal, Sparkles, BookOpen, Bell, ArrowRight, X, Volume2, MicOff, Sliders,
-  Zap, Bot, Play, Pause, Square, ChevronDown
+  Zap, Bot, Play, Pause, Square, ChevronDown, Layers, Camera, Activity
 } from "lucide-react";
 import { useSpeech } from "@/hooks/useSpeech";
 import { useWakeWord } from "@/hooks/useWakeWord";
@@ -31,13 +39,34 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  // Cognitive State & Orb
+  // Startup, Boot & HUD Gates
+  const [isIgnitionVisible, setIsIgnitionVisible] = useState(true);
+  const [isBooting, setIsBooting] = useState(false);
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
+  const [isHandsLive, setIsHandsLive] = useState(false);
+
+  // Cognitive State & Reactor
   const [cognitiveState, setCognitiveState] = useState("IDLE");
   const [orbEmotion, setOrbEmotion] = useState("neutral");
   const [autonomyScore, setAutonomyScore] = useState(88);
   const [operatingMode, setOperatingMode] = useState("ZERO_FRICTION");
   const [isModeDropdownOpen, setIsModeDropdownOpen] = useState(false);
   const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState(false);
+
+  // AI-controlled HUD & Reactor Directives
+  const [accentColor, setAccentColor] = useState<string | undefined>(undefined);
+  const [reactorProps, setReactorProps] = useState<{
+    scale?: number;
+    intensity?: number;
+    spin?: number;
+    style?: "ring" | "sphere" | "wire";
+    visible?: boolean;
+    orbitItems?: Array<{ id?: string; url: string; title?: string }>;
+  }>({});
+  const [chromeVisible, setChromeVisible] = useState(true);
+
+  // Multi-Blade Windowing System
+  const [blades, setBlades] = useState<BladeData[]>([]);
 
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<
@@ -50,8 +79,8 @@ export default function Home() {
   // Logs & Events
   const [logs, setLogs] = useState<LogEntry[]>([
     { id: "1", type: "system", text: "JARVIS 3.0 Perception, Voice 2.0 & Compute Fabric online." },
-    { id: "2", type: "system", text: "Natural Acoustic Voice & Prosody Engine initialized." },
-    { id: "3", type: "system", text: "Offline Wake-Word Detector & Distributed Compute Fabric active." },
+    { id: "2", type: "system", text: "Central Capability Policy Engine & Filesystem Sandbox active." },
+    { id: "3", type: "system", text: "Holographic Reactor, Multi-Blade UI & Gesture Engine initialized." },
   ]);
 
   const [toolLogs, setToolLogs] = useState<ToolLogItem[]>([]);
@@ -72,7 +101,7 @@ export default function Home() {
     }
   });
 
-  // Subscribe to Document Reader Controller
+  // Document Reader Controller
   useEffect(() => {
     if (!documentReaderController) return;
     const unsub = documentReaderController.subscribe((s) => {
@@ -87,7 +116,6 @@ export default function Home() {
   // Offline Wake-Word Hook
   const { isMicMuted, voiceState, toggleMicMute, audioLevel } = useWakeWord({
     onWakeWord: (phrase) => {
-      // Natural interruption: cancel any active speech output
       interrupt();
       setLogs(prev => [...prev, { id: Date.now().toString() + "_wake", type: "system", text: `[OFFLINE_WAKE] Detected "${phrase}". Listening for command...` }]);
       setCognitiveState("LISTENING");
@@ -96,7 +124,6 @@ export default function Home() {
       interrupt();
       setLogs(prev => [...prev, { id: Date.now().toString() + "_vcmd", type: "system", text: `[VOICE_CONTROL] Interruption executed: "${cmd}"` }]);
 
-      // Direct reading session voice controls
       const lower = cmd.toLowerCase().trim();
       if (documentReaderController && (documentReaderController.isReading || documentReaderController.isPaused)) {
         if (lower.includes("pause") || lower.includes("hold on")) {
@@ -120,121 +147,167 @@ export default function Home() {
     }
   });
 
-  // Fetch initial system data
+  // Central authenticated data fetchers
   const refreshMemory = async () => {
     try {
-      const res = await fetch("http://localhost:4000/api/memory");
-      if (res.ok) {
-        const data = await res.json();
-        setMemoryFacts(data.facts || []);
-        setMemoryPreferences(data.preferences || {});
+      const res = await fetchApi<{ facts: MemoryFact[]; preferences: Record<string, string> }>("/api/memory");
+      if (res.ok && res.data) {
+        setMemoryFacts(res.data.facts || []);
+        setMemoryPreferences(res.data.preferences || {});
       }
     } catch (_) {}
   };
 
   const refreshMissions = async () => {
     try {
-      const res = await fetch("http://localhost:4000/api/missions");
-      if (res.ok) {
-        const data = await res.json();
-        setActiveMission(data.active || null);
-        setMissionsList(data.missions || []);
+      const res = await fetchApi<{ active: Mission | null; missions: Mission[] }>("/api/missions");
+      if (res.ok && res.data) {
+        setActiveMission(res.data.active || null);
+        setMissionsList(res.data.missions || []);
       }
     } catch (_) {}
   };
 
   const refreshProactive = async () => {
     try {
-      const res = await fetch("http://localhost:4000/api/proactive");
-      if (res.ok) {
-        const data = await res.json();
-        setProactiveSuggestions(data.suggestions || []);
+      const res = await fetchApi<{ suggestions: any[] }>("/api/proactive");
+      if (res.ok && res.data) {
+        setProactiveSuggestions(res.data.suggestions || []);
       }
     } catch (_) {}
   };
 
   const refreshStatus = async () => {
     try {
-      const res = await fetch("http://localhost:4000/api/status");
-      if (res.ok) {
-        const data = await res.json();
-        if (typeof data.autonomyScore === 'number') setAutonomyScore(data.autonomyScore);
-        if (data.operatingMode) setOperatingMode(data.operatingMode);
+      const res = await fetchApi<{ autonomyScore?: number; operatingMode?: string }>("/api/status");
+      if (res.ok && res.data) {
+        if (typeof res.data.autonomyScore === "number") setAutonomyScore(res.data.autonomyScore);
+        if (res.data.operatingMode) setOperatingMode(res.data.operatingMode);
       }
     } catch (_) {}
   };
 
   const handleSwitchMode = async (mode: string) => {
     try {
-      const res = await fetch("http://localhost:4000/api/mode", {
+      const res = await fetchApi<{ mode: string }>("/api/mode", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode })
       });
-      if (res.ok) {
-        const data = await res.json();
-        setOperatingMode(data.mode);
+      if (res.ok && res.data) {
+        setOperatingMode(res.data.mode);
         setIsModeDropdownOpen(false);
-        setLogs(prev => [...prev, { id: Date.now().toString() + "_mode", type: "system", text: `[OPERATING_MODE] Switched to ${data.mode}` }]);
+        setLogs(prev => [...prev, { id: Date.now().toString() + "_mode", type: "system", text: `[OPERATING_MODE] Switched to ${res.data?.mode}` }]);
       }
     } catch (_) {}
   };
 
   const handleEmergencyOverride = async (action: string) => {
     try {
-      const res = await fetch("http://localhost:4000/api/override", {
+      const res = await fetchApi<{ message?: string }>("/api/override", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action })
       });
       if (res.ok) {
-        const data = await res.json();
-        setLogs(prev => [...prev, { id: Date.now().toString() + "_ovr", type: "system", text: `[USER_OVERRIDE] ${data.message || action}` }]);
+        setLogs(prev => [...prev, { id: Date.now().toString() + "_ovr", type: "system", text: `[USER_OVERRIDE] ${res.data?.message || action}` }]);
         refreshMissions();
       }
     } catch (_) {}
   };
 
+  // Blade operations
+  const handleOpenBlade = useCallback((blade: BladeData) => {
+    setBlades((prev) => {
+      const filtered = prev.filter((b) => b.id !== blade.id);
+      return [blade, ...filtered];
+    });
+  }, []);
+
+  const handleCloseBlade = useCallback((id: string) => {
+    setBlades((prev) => prev.filter((b) => b.id !== id));
+  }, []);
+
+  // UI Directives execution
+  const applyUiDirectives = useCallback((directive: any) => {
+    if (!directive) return;
+    if (directive.theme?.accentColor) setAccentColor(directive.theme.accentColor);
+    if (directive.reactor) {
+      setReactorProps((prev) => ({ ...prev, ...directive.reactor }));
+    }
+    if (directive.chrome) {
+      if (typeof directive.chrome.visible === "boolean") setChromeVisible(directive.chrome.visible);
+    }
+    if (directive.orbit?.items) {
+      setReactorProps((prev) => ({ ...prev, orbitItems: directive.orbit.items }));
+    }
+    if (directive.reset) {
+      setAccentColor(undefined);
+      setReactorProps({});
+      setChromeVisible(true);
+    }
+    if (directive.blade) {
+      handleOpenBlade(directive.blade);
+    }
+  }, [handleOpenBlade]);
+
+  // Authenticated SSE Event Stream
   useEffect(() => {
     refreshMemory();
     refreshMissions();
     refreshProactive();
     refreshStatus();
 
-    const eventSource = new EventSource("http://localhost:4000/api/events");
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'STATE_CHANGE') {
-          setCognitiveState(data.state);
-          if (data.payload?.tool) {
-            setToolLogs(prev => [
-              {
-                id: Date.now().toString(),
-                toolName: data.payload.tool,
-                args: data.payload.args,
-                status: "EXECUTING",
-                timestamp: new Date().toISOString()
-              },
-              ...prev
-            ]);
-          }
-          if (data.payload?.subtask) {
-            refreshMissions();
-          }
-        } else if (data.type === 'TASK_EVENT' || data.type === 'JOBS_UPDATED') {
-          refreshMissions();
-        } else if (data.type === 'WORLD_MODEL_UPDATED') {
-          refreshProactive();
-          refreshStatus();
-        } else if (data.type === 'VOICE_STATE_CHANGE') {
-          if (data.state === 'WAKE_WORD_DETECTED') setCognitiveState('LISTENING');
-        }
-      } catch (_) {}
-    };
+    let eventSource: EventSource | null = null;
+    let isSubscribed = true;
 
-    return () => eventSource.close();
-  }, []);
+    async function initSSE() {
+      const token = await getAuthToken();
+      const sseUrl = `${CONFIG.API_BASE_URL}/api/events${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+      eventSource = new EventSource(sseUrl);
+
+      eventSource.onmessage = (event) => {
+        if (!isSubscribed) return;
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "STATE_CHANGE") {
+            setCognitiveState(data.state);
+            if (data.payload?.tool) {
+              setToolLogs(prev => [
+                {
+                  id: Date.now().toString(),
+                  toolName: data.payload.tool,
+                  args: data.payload.args,
+                  status: "EXECUTING",
+                  timestamp: new Date().toISOString()
+                },
+                ...prev
+              ]);
+            }
+            if (data.payload?.subtask) refreshMissions();
+          } else if (data.type === "TASK_EVENT" || data.type === "JOBS_UPDATED") {
+            refreshMissions();
+          } else if (data.type === "WORLD_MODEL_UPDATED") {
+            refreshProactive();
+            refreshStatus();
+          } else if (data.type === "VOICE_STATE_CHANGE") {
+            if (data.state === "WAKE_WORD_DETECTED") setCognitiveState("LISTENING");
+          } else if (data.type === "UI_DIRECTIVE") {
+            applyUiDirectives(data.payload);
+          } else if (data.type === "BLADE_OPEN" && data.payload?.blade) {
+            handleOpenBlade(data.payload.blade);
+          } else if (data.type === "BLADE_CLOSE" && data.payload?.id) {
+            handleCloseBlade(data.payload.id);
+          }
+        } catch (_) {}
+      };
+    }
+
+    initSSE();
+
+    return () => {
+      isSubscribed = false;
+      if (eventSource) eventSource.close();
+    };
+  }, [applyUiDirectives, handleCloseBlade, handleOpenBlade]);
 
   // Auth Listener
   useEffect(() => {
@@ -243,12 +316,72 @@ export default function Home() {
       setAuthLoading(false);
       if (usr) {
         const hour = new Date().getHours();
-        const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-        setLogs(prev => [...prev, { id: "auth_" + Date.now(), type: "ai", text: `${greeting}, ${usr.displayName || 'Sir'}. JARVIS 3.0 AI OS is fully online. Vision, Voice & Compute ready.` }]);
+        const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+        setLogs(prev => [
+          ...prev,
+          { id: "auth_" + Date.now(), type: "ai", text: `${greeting}, ${usr.displayName || "Sir"}. JARVIS 3.0 AI OS is fully online. Vision, Voice & Compute ready.` }
+        ]);
       }
     });
     return unsub;
   }, []);
+
+  // Global Keyboard Shortcuts (Space PTT, V voice mode, Esc stand-down, D diagnostics, T audio test, G hands)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable) return;
+
+      if (e.key === "Escape") {
+        e.preventDefault();
+        interrupt();
+        setIsDiagnosticsOpen(false);
+        setLogs(prev => [...prev, { id: Date.now().toString(), type: "system", text: "[STAND_DOWN] Turn interrupted & voice synthesis halted." }]);
+      } else if (e.key === "d" || e.key === "D") {
+        if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+          e.preventDefault();
+          setIsDiagnosticsOpen(prev => !prev);
+        }
+      } else if (e.key === "t" || e.key === "T") {
+        if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+          e.preventDefault();
+          speak("Diagnostics audio self-test. Primary sound channels operational.");
+        }
+      } else if (e.key === "v" || e.key === "V") {
+        if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+          e.preventDefault();
+          setIsVoiceSettingsOpen(prev => !prev);
+        }
+      } else if (e.key === "g" || e.key === "G") {
+        if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+          e.preventDefault();
+          toggleHandsTracking();
+        }
+      } else if (e.code === "Space" && !e.repeat) {
+        e.preventDefault();
+        toggleListening();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [interrupt, speak, toggleListening]);
+
+  const toggleHandsTracking = async () => {
+    if (isHandsLive) {
+      disableHands();
+      setIsHandsLive(false);
+      setLogs(prev => [...prev, { id: Date.now().toString(), type: "system", text: "[GESTURE] Hand tracking disabled." }]);
+    } else {
+      try {
+        await enableHands();
+        setIsHandsLive(true);
+        setLogs(prev => [...prev, { id: Date.now().toString(), type: "system", text: "[GESTURE] Hand tracking active. Pinch to click/drag, peace to scroll." }]);
+      } catch (err: any) {
+        setLogs(prev => [...prev, { id: Date.now().toString(), type: "system", text: `[GESTURE_ERR] ${err.message || "Failed to start camera for tracking"}` }]);
+      }
+    }
+  };
 
   const handleLogin = async () => {
     try {
@@ -259,11 +392,21 @@ export default function Home() {
     }
   };
 
+  const handleIgnitionStart = () => {
+    setIsIgnitionVisible(false);
+    setIsBooting(true);
+  };
+
+  const handleBootComplete = () => {
+    setIsBooting(false);
+    speak("Systems online, sir. How may I assist you today?");
+  };
+
   useEffect(() => {
     if (transcript) {
       const lower = transcript.toLowerCase();
       if (lower.startsWith("jarvis") || lower.startsWith("hey jarvis")) {
-        const cleaned = transcript.replace(/^(hey\s+)?jarvis,?\s*/i, '');
+        const cleaned = transcript.replace(/^(hey\s+)?jarvis,?\s*/i, "");
         setInputText(cleaned);
       } else {
         setInputText(transcript);
@@ -287,24 +430,27 @@ export default function Home() {
     }
 
     try {
-      const response = await fetch("http://localhost:4000/api/chat", {
+      const response = await fetchApi<any>("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: command })
       });
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || "Network error");
+      if (!response.ok || !response.data) {
+        throw new Error(response.error || "Network error");
       }
 
-      const data = await response.json();
+      const data = response.data;
 
       if (data.emotion) setOrbEmotion(data.emotion);
+      if (data.ui) applyUiDirectives(data.ui);
+      if (data.blade) handleOpenBlade(data.blade);
 
       if (data.confirmationRequired) {
         setPendingConfirmation(data.confirmationRequired);
-        setLogs(prev => [...prev, { id: Date.now().toString() + "_sec", type: "system", text: `[SECURITY_HOLD] Action requires human authorization: ${data.confirmationRequired.toolName}` }]);
+        setLogs(prev => [
+          ...prev,
+          { id: Date.now().toString() + "_sec", type: "system", text: `[SECURITY_HOLD] Action requires human authorization: ${data.confirmationRequired.toolName}` }
+        ]);
       }
 
       if (data.action) {
@@ -312,7 +458,6 @@ export default function Home() {
           if (documentReaderController) {
             documentReaderController.loadDocument(data.action.document);
             setIsReadingHudVisible(true);
-            // Speak brief acknowledgment first, then begin verbatim reading session
             speak(data.spokenText || "Of course. I'll read it.", data.voiceProsody);
             setTimeout(() => {
               documentReaderController.startReading(1);
@@ -367,18 +512,17 @@ export default function Home() {
 
   const handleSecurityDecision = async (id: string, approved: boolean) => {
     try {
-      const res = await fetch("http://localhost:4000/api/security/approve", {
+      const res = await fetchApi<{ result?: string }>("/api/security/approve", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, approved })
       });
-      const data = await res.json();
+      const data = res.data;
       setPendingConfirmation(null);
       
       setLogs(prev => [...prev, {
         id: Date.now().toString() + "_sec_res",
         type: "system",
-        text: approved ? `[SECURITY_APPROVED] Execution output: ${data.result}` : `[SECURITY_DENIED] Action blocked by user.`
+        text: approved ? `[SECURITY_APPROVED] Execution output: ${data?.result || "OK"}` : `[SECURITY_DENIED] Action blocked by user.`
       }]);
     } catch (err) {
       console.error(err);
@@ -387,9 +531,8 @@ export default function Home() {
 
   const handleDismissProactive = async (id: string) => {
     try {
-      await fetch("http://localhost:4000/api/proactive/dismiss", {
+      await fetchApi("/api/proactive/dismiss", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id })
       });
       refreshProactive();
@@ -430,6 +573,24 @@ export default function Home() {
       {/* Background ambient lighting */}
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-cyan-500/5 rounded-full blur-[180px] pointer-events-none" />
 
+      {/* Ignition Start Gate for Browser Audio */}
+      <Ignition visible={isIgnitionVisible} onStart={handleIgnitionStart} />
+
+      {/* Cinematic 4-Beat Boot Sequence */}
+      <Boot isBooting={isBooting} onBootComplete={handleBootComplete} />
+
+      {/* Diagnostics HUD Panel */}
+      <Diagnostics
+        isOpen={isDiagnosticsOpen}
+        onClose={() => setIsDiagnosticsOpen(false)}
+        onAudioTest={() => speak("Diagnostics audio self-test. Primary sound channels operational.")}
+        phase={cognitiveState}
+      />
+
+      {/* Hand Gesture Skeleton Overlay & Guide */}
+      <Pointer />
+      <GestureGuide live={isHandsLive} />
+
       {/* Security Approval Modal */}
       <SecurityApprovalModal 
         confirmation={pendingConfirmation}
@@ -444,176 +605,198 @@ export default function Home() {
       />
 
       {/* Top Navbar */}
-      <header className="h-14 border-b border-white/10 px-6 flex justify-between items-center z-20 glass-panel flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-3 h-3 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_10px_#00f0ff]" />
-          <h1 className="font-mono text-xs tracking-[0.3em] font-bold text-cyan-300 uppercase">JARVIS 3.0 AI OS</h1>
-          <span className="text-[9px] font-mono bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/20">
-            SCORE: {autonomyScore}/100
-          </span>
-          <button
-            onClick={toggleMicMute}
-            className={`text-[9px] font-mono px-2 py-0.5 rounded border flex items-center gap-1 transition-all ${
-              isMicMuted 
-                ? 'bg-red-500/20 text-red-400 border-red-500/40' 
-                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-            }`}
-            title="Toggle Microphone Mute"
-          >
-            {isMicMuted ? <MicOff size={10} /> : <Mic size={10} />}
-            {isMicMuted ? 'MIC MUTED' : 'WAKE WORD ONLINE'}
-          </button>
-          <button
-            onClick={() => setIsVoiceSettingsOpen(true)}
-            className="text-[9px] font-mono px-2 py-0.5 rounded border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 flex items-center gap-1 hover:bg-cyan-500/20 transition-all cursor-pointer shadow-[0_0_10px_rgba(0,240,255,0.15)]"
-            title="Calibrate JARVIS Voice 2.0 Settings"
-          >
-            <Sliders size={10} /> VOICE 2.0
-          </button>
-
-          {/* Mode Switcher Pill */}
-          <div className="relative">
+      {chromeVisible && (
+        <header className="h-14 border-b border-white/10 px-6 flex justify-between items-center z-20 glass-panel flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-3 h-3 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_10px_#00f0ff]" />
+            <h1 className="font-mono text-xs tracking-[0.3em] font-bold text-cyan-300 uppercase">JARVIS 3.0 AI OS</h1>
+            <span className="text-[9px] font-mono bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/20">
+              SCORE: {autonomyScore}/100
+            </span>
             <button
-              onClick={() => setIsModeDropdownOpen(prev => !prev)}
-              className={`text-[9px] font-mono px-2.5 py-1 rounded-lg border flex items-center gap-1.5 transition-all shadow-sm ${
-                operatingMode === 'ZERO_FRICTION'
-                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400/50 shadow-[0_0_12px_rgba(6,182,212,0.3)]'
-                  : operatingMode === 'AUTONOMOUS'
-                  ? 'bg-blue-500/20 text-blue-300 border-blue-400/50 shadow-[0_0_12px_rgba(59,130,246,0.3)]'
-                  : 'bg-purple-500/20 text-purple-300 border-purple-400/50'
+              onClick={toggleMicMute}
+              className={`text-[9px] font-mono px-2 py-0.5 rounded border flex items-center gap-1 transition-all ${
+                isMicMuted 
+                  ? "bg-red-500/20 text-red-400 border-red-500/40" 
+                  : "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
               }`}
-              title="Change Operating Autonomy Mode"
+              title="Toggle Microphone Mute"
             >
-              {operatingMode === 'ZERO_FRICTION' ? (
-                <Zap size={10} className="text-amber-400 fill-amber-400/30 animate-pulse" />
-              ) : operatingMode === 'AUTONOMOUS' ? (
-                <Bot size={10} className="text-blue-400" />
-              ) : (
-                <Shield size={10} className="text-purple-400" />
-              )}
-              <span className="font-bold tracking-wide">
-                {operatingMode === 'ZERO_FRICTION' ? '⚡ ZERO-FRICTION' : operatingMode === 'AUTONOMOUS' ? '🤖 AUTONOMOUS' : '🛡️ ASSISTED'}
-              </span>
-              <ChevronDown size={10} className={`transition-transform ${isModeDropdownOpen ? 'rotate-180' : ''}`} />
+              {isMicMuted ? <MicOff size={10} /> : <Mic size={10} />}
+              {isMicMuted ? "MIC MUTED" : "WAKE WORD ONLINE"}
+            </button>
+            <button
+              onClick={() => setIsVoiceSettingsOpen(true)}
+              className="text-[9px] font-mono px-2 py-0.5 rounded border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 flex items-center gap-1 hover:bg-cyan-500/20 transition-all cursor-pointer shadow-[0_0_10px_rgba(0,240,255,0.15)]"
+              title="Calibrate Voice Settings [V]"
+            >
+              <Sliders size={10} /> VOICE [V]
+            </button>
+            <button
+              onClick={toggleHandsTracking}
+              className={`text-[9px] font-mono px-2 py-0.5 rounded border flex items-center gap-1 transition-all ${
+                isHandsLive 
+                  ? "bg-purple-500/20 text-purple-300 border-purple-500/40 shadow-[0_0_10px_rgba(168,85,247,0.3)]" 
+                  : "border-white/10 text-white/50 hover:bg-white/5"
+              }`}
+              title="Toggle Camera Hand Tracking [G]"
+            >
+              <Camera size={10} /> HANDS [G]
+            </button>
+            <button
+              onClick={() => setIsDiagnosticsOpen(prev => !prev)}
+              className={`text-[9px] font-mono px-2 py-0.5 rounded border flex items-center gap-1 transition-all ${
+                isDiagnosticsOpen ? "bg-amber-500/20 text-amber-300 border-amber-500/40" : "border-white/10 text-white/50 hover:bg-white/5"
+              }`}
+              title="Toggle HUD Diagnostics [D]"
+            >
+              <Activity size={10} /> DIAG [D]
             </button>
 
-            {isModeDropdownOpen && (
-              <div className="absolute left-0 mt-1.5 w-52 bg-[#090d1a] border border-cyan-500/30 rounded-xl p-1.5 shadow-2xl z-50 flex flex-col gap-1 font-mono text-[10px]">
+            {/* Mode Switcher Pill */}
+            <div className="relative">
+              <button
+                onClick={() => setIsModeDropdownOpen(prev => !prev)}
+                className={`text-[9px] font-mono px-2.5 py-1 rounded-lg border flex items-center gap-1.5 transition-all shadow-sm ${
+                  operatingMode === "ZERO_FRICTION"
+                    ? "bg-cyan-500/20 text-cyan-300 border-cyan-400/50 shadow-[0_0_12px_rgba(6,182,212,0.3)]"
+                    : operatingMode === "AUTONOMOUS"
+                    ? "bg-blue-500/20 text-blue-300 border-blue-400/50 shadow-[0_0_12px_rgba(59,130,246,0.3)]"
+                    : "bg-purple-500/20 text-purple-300 border-purple-400/50"
+                }`}
+                title="Change Operating Autonomy Mode"
+              >
+                {operatingMode === "ZERO_FRICTION" ? (
+                  <Zap size={10} className="text-amber-400 fill-amber-400/30 animate-pulse" />
+                ) : operatingMode === "AUTONOMOUS" ? (
+                  <Bot size={10} className="text-blue-400" />
+                ) : (
+                  <Shield size={10} className="text-purple-400" />
+                )}
+                <span className="font-bold tracking-wide">
+                  {operatingMode === "ZERO_FRICTION" ? "⚡ ZERO-FRICTION" : operatingMode === "AUTONOMOUS" ? "🤖 AUTONOMOUS" : "🛡️ ASSISTED"}
+                </span>
+                <ChevronDown size={10} className={`transition-transform ${isModeDropdownOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {isModeDropdownOpen && (
+                <div className="absolute left-0 mt-1.5 w-52 bg-[#090d1a] border border-cyan-500/30 rounded-xl p-1.5 shadow-2xl z-50 flex flex-col gap-1 font-mono text-[10px]">
+                  <button
+                    onClick={() => handleSwitchMode("ZERO_FRICTION")}
+                    className={`p-2 rounded-lg flex items-center gap-2 text-left transition-colors ${operatingMode === "ZERO_FRICTION" ? "bg-cyan-500/20 text-cyan-300 font-bold" : "text-white/70 hover:bg-white/5"}`}
+                  >
+                    <Zap size={12} className="text-amber-400" />
+                    <div>
+                      <div className="text-white font-semibold">Zero-Friction Mode</div>
+                      <div className="text-[9px] text-white/40">Direct, decisive, maximum speed</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => handleSwitchMode("AUTONOMOUS")}
+                    className={`p-2 rounded-lg flex items-center gap-2 text-left transition-colors ${operatingMode === "AUTONOMOUS" ? "bg-blue-500/20 text-blue-300 font-bold" : "text-white/70 hover:bg-white/5"}`}
+                  >
+                    <Bot size={12} className="text-blue-400" />
+                    <div>
+                      <div className="text-white font-semibold">Autonomous Mode</div>
+                      <div className="text-[9px] text-white/40">Balanced multi-step execution</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => handleSwitchMode("ASSISTED")}
+                    className={`p-2 rounded-lg flex items-center gap-2 text-left transition-colors ${operatingMode === "ASSISTED" ? "bg-purple-500/20 text-purple-300 font-bold" : "text-white/70 hover:bg-white/5"}`}
+                  >
+                    <Shield size={12} className="text-purple-400" />
+                    <div>
+                      <div className="text-white font-semibold">Assisted Mode</div>
+                      <div className="text-[9px] text-white/40">Guided step-by-step confirmation</div>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Live Mission Emergency Control Buttons */}
+            {activeMission && (
+              <div className="flex items-center gap-1 bg-black/50 px-2 py-0.5 rounded-lg border border-amber-500/40 animate-pulse">
+                <span className="text-[9px] font-mono text-amber-400 font-bold mr-1">MISSION IN PROGRESS</span>
                 <button
-                  onClick={() => handleSwitchMode('ZERO_FRICTION')}
-                  className={`p-2 rounded-lg flex items-center gap-2 text-left transition-colors ${operatingMode === 'ZERO_FRICTION' ? 'bg-cyan-500/20 text-cyan-300 font-bold' : 'text-white/70 hover:bg-white/5'}`}
+                  onClick={() => handleEmergencyOverride(activeMission.status === "PAUSED" ? "resume" : "pause")}
+                  className="p-1 hover:bg-white/10 rounded text-amber-300 transition-colors"
+                  title={activeMission.status === "PAUSED" ? "Resume Mission" : "Pause Mission"}
                 >
-                  <Zap size={12} className="text-amber-400" />
-                  <div>
-                    <div className="text-white font-semibold">Zero-Friction Mode</div>
-                    <div className="text-[9px] text-white/40">Direct, decisive, maximum speed</div>
-                  </div>
+                  {activeMission.status === "PAUSED" ? <Play size={10} /> : <Pause size={10} />}
                 </button>
                 <button
-                  onClick={() => handleSwitchMode('AUTONOMOUS')}
-                  className={`p-2 rounded-lg flex items-center gap-2 text-left transition-colors ${operatingMode === 'AUTONOMOUS' ? 'bg-blue-500/20 text-blue-300 font-bold' : 'text-white/70 hover:bg-white/5'}`}
+                  onClick={() => handleEmergencyOverride("cancel")}
+                  className="p-1 hover:bg-red-500/20 rounded text-red-400 transition-colors"
+                  title="Stop / Abort Mission"
                 >
-                  <Bot size={12} className="text-blue-400" />
-                  <div>
-                    <div className="text-white font-semibold">Autonomous Mode</div>
-                    <div className="text-[9px] text-white/40">Balanced multi-step execution</div>
-                  </div>
-                </button>
-                <button
-                  onClick={() => handleSwitchMode('ASSISTED')}
-                  className={`p-2 rounded-lg flex items-center gap-2 text-left transition-colors ${operatingMode === 'ASSISTED' ? 'bg-purple-500/20 text-purple-300 font-bold' : 'text-white/70 hover:bg-white/5'}`}
-                >
-                  <Shield size={12} className="text-purple-400" />
-                  <div>
-                    <div className="text-white font-semibold">Assisted Mode</div>
-                    <div className="text-[9px] text-white/40">Guided step-by-step confirmation</div>
-                  </div>
+                  <Square size={10} />
                 </button>
               </div>
             )}
           </div>
 
-          {/* Live Mission Emergency Control Buttons */}
-          {activeMission && (
-            <div className="flex items-center gap-1 bg-black/50 px-2 py-0.5 rounded-lg border border-amber-500/40 animate-pulse">
-              <span className="text-[9px] font-mono text-amber-400 font-bold mr-1">MISSION IN PROGRESS</span>
-              <button
-                onClick={() => handleEmergencyOverride(activeMission.status === 'PAUSED' ? 'resume' : 'pause')}
-                className="p-1 hover:bg-white/10 rounded text-amber-300 transition-colors"
-                title={activeMission.status === 'PAUSED' ? "Resume Mission" : "Pause Mission"}
-              >
-                {activeMission.status === 'PAUSED' ? <Play size={10} /> : <Pause size={10} />}
-              </button>
-              <button
-                onClick={() => handleEmergencyOverride('cancel')}
-                className="p-1 hover:bg-red-500/20 rounded text-red-400 transition-colors"
-                title="Stop / Abort Mission"
-              >
-                <Square size={10} />
-              </button>
-            </div>
-          )}
-        </div>
+          {/* Navigation Tabs */}
+          <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10 font-mono text-xs overflow-x-auto">
+            <button 
+              onClick={() => setActiveTab("dashboard")}
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${activeTab === "dashboard" ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold" : "text-white/50 hover:text-white"}`}
+            >
+              <LayoutDashboard size={13} /> Command
+            </button>
+            <button 
+              onClick={() => setActiveTab("missions")}
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${activeTab === "missions" ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold" : "text-white/50 hover:text-white"}`}
+            >
+              <Flag size={13} /> Mission Control
+            </button>
+            <button 
+              onClick={() => setActiveTab("skills")}
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${activeTab === "skills" ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold" : "text-white/50 hover:text-white"}`}
+            >
+              <Sparkles size={13} /> Skills Hub
+            </button>
+            <button 
+              onClick={() => setActiveTab("vault")}
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${activeTab === "vault" ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold" : "text-white/50 hover:text-white"}`}
+            >
+              <BookOpen size={13} /> Knowledge Vault
+            </button>
+            <button 
+              onClick={() => setActiveTab("permissions")}
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${activeTab === "permissions" ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold" : "text-white/50 hover:text-white"}`}
+            >
+              <Shield size={13} /> Security
+            </button>
+            <button 
+              onClick={() => setActiveTab("dev")}
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${activeTab === "dev" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold" : "text-white/50 hover:text-white"}`}
+            >
+              <Terminal size={13} /> Dev Mode
+            </button>
+            <button 
+              onClick={() => setActiveTab("gameverse")}
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${activeTab === "gameverse" ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold" : "text-white/50 hover:text-white"}`}
+            >
+              <Gamepad2 size={13} className="text-purple-400 animate-pulse" /> GAMEVERSE
+            </button>
+            <button 
+              onClick={() => setActiveTab("memory")}
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${activeTab === "memory" ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold" : "text-white/50 hover:text-white"}`}
+            >
+              <Brain size={13} /> Memory 2.0
+            </button>
+          </div>
 
-        {/* Navigation Tabs */}
-        <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10 font-mono text-xs overflow-x-auto">
           <button 
-            onClick={() => setActiveTab("dashboard")}
-            className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${activeTab === 'dashboard' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold' : 'text-white/50 hover:text-white'}`}
+            onClick={() => signOut(auth)} 
+            className="text-white/40 hover:text-red-400 p-2 transition-colors flex items-center gap-1 font-mono text-xs"
           >
-            <LayoutDashboard size={13} /> Command
+            <LogOut size={14} />
           </button>
-          <button 
-            onClick={() => setActiveTab("missions")}
-            className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${activeTab === 'missions' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold' : 'text-white/50 hover:text-white'}`}
-          >
-            <Flag size={13} /> Mission Control
-          </button>
-          <button 
-            onClick={() => setActiveTab("skills")}
-            className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${activeTab === 'skills' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold' : 'text-white/50 hover:text-white'}`}
-          >
-            <Sparkles size={13} /> Skills Hub
-          </button>
-          <button 
-            onClick={() => setActiveTab("vault")}
-            className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${activeTab === 'vault' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold' : 'text-white/50 hover:text-white'}`}
-          >
-            <BookOpen size={13} /> Knowledge Vault
-          </button>
-          <button 
-            onClick={() => setActiveTab("permissions")}
-            className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${activeTab === 'permissions' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold' : 'text-white/50 hover:text-white'}`}
-          >
-            <Shield size={13} /> Security
-          </button>
-          <button 
-            onClick={() => setActiveTab("dev")}
-            className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${activeTab === 'dev' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold' : 'text-white/50 hover:text-white'}`}
-          >
-            <Terminal size={13} /> Dev Mode
-          </button>
-          <button 
-            onClick={() => setActiveTab("gameverse")}
-            className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${activeTab === 'gameverse' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold' : 'text-white/50 hover:text-white'}`}
-          >
-            <Gamepad2 size={13} className="text-purple-400 animate-pulse" /> GAMEVERSE
-          </button>
-          <button 
-            onClick={() => setActiveTab("memory")}
-            className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${activeTab === 'memory' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold' : 'text-white/50 hover:text-white'}`}
-          >
-            <Brain size={13} /> Memory 2.0
-          </button>
-        </div>
-
-        <button 
-          onClick={() => signOut(auth)} 
-          className="text-white/40 hover:text-red-400 p-2 transition-colors flex items-center gap-1 font-mono text-xs"
-        >
-          <LogOut size={14} />
-        </button>
-      </header>
+        </header>
+      )}
 
       {/* Proactive Intelligence Suggestion Banner */}
       {proactiveSuggestions.length > 0 && (
@@ -646,6 +829,11 @@ export default function Home() {
       {/* Main Content Viewport */}
       <div className="flex-1 p-6 relative z-10 flex overflow-hidden">
         
+        {/* Multi-Blade Windowing Layer (Rendered on top of central command) */}
+        {blades.length > 0 && (
+          <Blades blades={blades} onCloseBlade={handleCloseBlade} />
+        )}
+
         {/* Tab 1: Central Command Dashboard */}
         {activeTab === "dashboard" && (
           <div className="w-full h-full flex flex-col md:flex-row gap-6">
@@ -666,17 +854,21 @@ export default function Home() {
                 </div>
               )}
 
-              <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-300 ${isReadingHudVisible ? 'opacity-30 scale-90 pointer-events-none' : 'opacity-100 scale-100'}`}>
-                <JarvisOrb 
+              {/* 3D Holographic Reactor / 2D Dynamic Orb Core */}
+              <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-300 ${isReadingHudVisible ? "opacity-30 scale-90 pointer-events-none" : "opacity-100 scale-100"}`}>
+                <JarvisVisualCore 
                   isListening={isListening || isLoading}
-                  isSpeaking={isSpeaking || (readingSession?.status === 'READING')}
+                  isSpeaking={isSpeaking || (readingSession?.status === "READING")}
                   speechLevel={speechLevel}
                   audioLevel={audioLevel}
                   emotion={orbEmotion} 
-                  cognitiveState={cognitiveState} 
+                  cognitiveState={cognitiveState}
+                  accentColor={accentColor}
+                  reactorProps={reactorProps}
                 />
               </div>
 
+              {/* Bottom Interactive Command Search Bar */}
               <div className="absolute bottom-4 w-full max-w-xl px-4 z-50">
                 <form onSubmit={handleCommand} className="relative group flex items-center shadow-2xl">
                   <Search size={16} className="absolute left-5 text-white/30 group-focus-within:text-cyan-400 transition-colors" />
@@ -684,14 +876,15 @@ export default function Home() {
                     type="text" 
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
-                    placeholder="Awaiting directive (e.g. 'Click Submit button', 'Run data analysis on compute cluster')..."
+                    placeholder="Awaiting directive (Space for PTT, Esc to stand down, D for diagnostics)..."
                     disabled={isLoading}
                     className="w-full bg-black/60 border border-white/10 rounded-full py-4 pl-12 pr-14 text-sm outline-none focus:border-cyan-500/60 focus:bg-black/80 transition-all placeholder:text-white/30 font-light backdrop-blur-xl"
                   />
                   <button 
                     type="button" 
                     onClick={toggleListening}
-                    className={`absolute right-4 p-2 rounded-full transition-all ${isListening ? 'bg-cyan-500/30 text-cyan-300 shadow-[0_0_15px_rgba(0,240,255,0.4)]' : 'hover:bg-cyan-500/20 text-cyan-400'}`}
+                    className={`absolute right-4 p-2 rounded-full transition-all ${isListening ? "bg-cyan-500/30 text-cyan-300 shadow-[0_0_15px_rgba(0,240,255,0.4)]" : "hover:bg-cyan-500/20 text-cyan-400"}`}
+                    title="Toggle Speech Recognition [Space]"
                   >
                     <Mic size={18} />
                   </button>
@@ -731,21 +924,21 @@ export default function Home() {
           </div>
         )}
 
-        {/* Tab 5: Permission Center */}
+        {/* Tab 5: Permission & Security Center */}
         {activeTab === "permissions" && (
           <div className="w-full h-full max-w-6xl mx-auto">
             <PermissionCenter />
           </div>
         )}
 
-        {/* Tab 6: Developer Mode */}
+        {/* Tab 6: Developer Mode & Compute Fabric */}
         {activeTab === "dev" && (
           <div className="w-full h-full max-w-6xl mx-auto">
             <DeveloperMode />
           </div>
         )}
 
-        {/* Tab 7: Gameverse Platform */}
+        {/* Tab 7: Gameverse Arcade & Simulator */}
         {activeTab === "gameverse" && (
           <div className="w-full h-full max-w-6xl mx-auto">
             <GameverseHub />
@@ -754,8 +947,12 @@ export default function Home() {
 
         {/* Tab 8: Memory Matrix 2.0 */}
         {activeTab === "memory" && (
-          <div className="w-full h-full max-w-4xl mx-auto">
-            <MemoryMatrixView facts={memoryFacts} preferences={memoryPreferences} onRefresh={refreshMemory} />
+          <div className="w-full h-full max-w-6xl mx-auto">
+            <MemoryMatrixView 
+              facts={memoryFacts} 
+              preferences={memoryPreferences} 
+              onRefresh={refreshMemory}
+            />
           </div>
         )}
 

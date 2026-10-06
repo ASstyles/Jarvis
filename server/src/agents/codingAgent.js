@@ -29,7 +29,7 @@ Be clean, robust, and handle errors gracefully.`),
     ];
 
     try {
-      const response = await modelRouter.invokeWithFallback(messages, this.tools, 'coding', 0.1);
+      const response = await modelRouter.invokeWithFallback(messages, this.tools, 'coding', 0.1, { taskType: 'coding' });
       return response.content || "Coding task completed cleanly.";
     } catch (err) {
       console.error("[CODING_AGENT] Error:", err.message);

@@ -6,7 +6,7 @@
 ![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-green.svg)
 ![Next.js](https://img.shields.io/badge/Next.js-16.2.3-black.svg)
 ![React](https://img.shields.io/badge/React-19.2.4-61DAFB.svg)
-![Gemini](https://img.shields.io/badge/LLM-Google%20Gemini%202.0-8E75B2.svg)
+![Gemini](https://img.shields.io/badge/LLM-Google%20Gemini%203.8-8E75B2.svg)
 ![LangChain](https://img.shields.io/badge/Framework-LangChain-orange.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg)
 ![TailwindCSS](https://img.shields.io/badge/Tailwind-v4-38B2AC.svg)
@@ -297,7 +297,10 @@ Open `server/.env` and insert your Gemini API Key:
 ```env
 PORT=4000
 GEMINI_API_KEY="your_actual_gemini_api_key_here"
-GEMINI_MODEL=gemini-2.0-flash
+GEMINI_PRIMARY_MODEL=gemini-3.8-flash
+GEMINI_LIVE_MODEL=gemini-3.8-live
+GEMINI_TTS_MODEL=gemini-3.8-flash-tts
+GEMINI_MODEL=gemini-3.8-flash
 ```
 
 Start the backend server:
@@ -379,15 +382,23 @@ Visit **[http://localhost:3000](http://localhost:3000)** in your browser.
 - `POST /api/override`: Emergency override command (`stop`, `pause`, `resume`, `cancel`).
 - `POST /api/security/approve`: Approve or deny a pending security confirmation.
 
-### Vision, Voice & Compute Fabric
+### Vision, Voice, Camera & Compute Fabric
 - `GET /api/vision/status`: Inspect active VLM provider and visual capabilities.
 - `POST /api/vision/ground`: Resolve natural language query to UI screen coordinates.
 - `POST /api/vision/ocr`: Extract text from desktop screen or image file.
 - `POST /api/vision/verify`: Visually verify an expected action on screen.
-- `GET /api/voice/status`: Telemetry for wake-word and voice engine.
+- `GET /api/camera/stream`: Access refcounted camera stream info.
+- `POST /api/camera/response`: Supply client camera frames/contact sheets for VLM queries.
+- `GET /api/voice/status`: Telemetry for wake-word, VAD, and voice engine.
 - `POST /api/voice/wakeword`: Trigger wake-word handler.
 - `GET /api/compute/status`: Cluster status and node resource allocations.
 - `POST /api/compute/dispatch`: Dispatch compute task to cluster.
+
+### Media & Web Proxy (SSRF Guarded)
+- `GET /api/proxy/image`: Secure proxy for remote images with DNS rebinding protection.
+- `GET /api/proxy/media`: Secure audio/video streaming proxy.
+- `GET /api/proxy/file`: Secure local workspace file provider.
+- `GET /api/proxy/page`: Reader mode (sanitized Readability markdown) and Live mode (sandboxed iframe with stripped scripts and CSP).
 
 ### Verifiable Document Reader
 - `GET /api/reading/session`: Telemetry of active document reading session.
@@ -396,24 +407,49 @@ Visit **[http://localhost:3000](http://localhost:3000)** in your browser.
 
 ---
 
+## 🔍 Reality & Operational Status Matrix
+
+To maintain total architectural transparency, here is the exact operational reality of every subsystem:
+
+| Subsystem | Status | Description |
+| :--- | :--- | :--- |
+| **Multi-Agent Orchestrator** | **REAL** | Fully functional LangChain + Gemini / Claude agent loop with DAG task tracking. |
+| **Capability Policy Engine** | **REAL** | Fine-grained risk taxonomy (READ, WRITE, PROCESS, DESTRUCTIVE, etc.) with mode overrides. |
+| **Filesystem Hardening** | **REAL** | Realpath validation, traversal block, UNC/Windows device name rejection. |
+| **SSRF Proxy Defense** | **REAL** | Rejects 127/8, RFC 1918, 169.254.169.254, IPv4-mapped IPv6, DNS rebinding guard. |
+| **Isolated Sandbox** | **REAL** | Worker thread + VM sandbox for JS; stripped credential subprocess for Python. |
+| **3D Holographic Reactor** | **REAL** | Three.js WebGL rendering with audio reactivity, state-driven colors, and 2D fallback. |
+| **Multi-Blade Windowing** | **REAL** | Drag, resize, fullscreen windowing for Reader/Live pages, camera, video, and markup. |
+| **Cinematic Boot** | **REAL** | Wall-clock paced 4-beat SVG/CSS startup sequence (Status bar, Rings, Suit, Reactor). |
+| **Hand Tracking & Gestures** | **REAL** | MediaPipe Tasks-Vision on GPU/CPU with 1€ adaptive filtering and PointerEvent synthesis. |
+| **Webcam Rolling Buffer** | **REAL** | 10-second client-side ring buffer with stamped contact-sheet generation for VLM. |
+| **Authenticated Chrome Bridge**| **REAL** | Connects to user's remote debugging port (9222) with serialized command queues. |
+| **Model Router** | **REAL** | Unified provider abstraction supporting Google Gemini and Anthropic Claude. |
+| **Generic MCP Ecosystem** | **REAL** | Discovers and invokes external stdio MCP servers without writing custom tools. |
+| **Firebase Backend Auth** | **REAL** | Server-side JWT decoding, claim verification, and authenticated SSE stream. |
+| **Distributed Compute** | **OPTIONAL / LOCAL** | In-memory cluster simulation and remote HTTP node registration. |
+| **Semantic Vector Vault** | **HYBRID** | Local TF-IDF and keyword index with optional LangChain embedding backends. |
+
+---
+
 ## 🧪 Testing & Quality Assurance
 
-JARVIS includes a dedicated test suite with 22 unit, integration, and regression test modules:
+JARVIS includes a comprehensive test suite across unit, integration, and security layers:
 
 ```bash
 cd server
-node tests/test_zero_friction.js
-node tests/e2ePerceptionVoiceCompute.test.js
-node tests/regressionToolGate.test.js
-node tests/documentReading.test.js
-node tests/goalAutopilot.test.js
-node tests/memory2.test.js
-node tests/computeFabric.test.js
-node tests/vlmPerception.test.js
+npm test
 ```
 
 ### Test Coverage Highlights:
-- **Agent Loop & Tool Gate**: Validates autonomous decision loop and ensures dangerous commands are gated.
+- **Security & Hardening Suite (`securityAndUpgrades.test.js`)**:
+  - Traversal rejection (`../`, absolute paths outside workspace).
+  - UNC path and Windows reserved device name protection (`CON`, `NUL`, `AUX`).
+  - SSRF defense against loopback, RFC 1918, CGNAT, cloud metadata, and IPv4-mapped IPv6.
+  - Worker thread + VM isolation and infinite loop termination.
+  - Capability policy risk assignment and mode transitions.
+  - Server-side Firebase JWT decoding and expiration validation.
+  - Model router provider selection and failover.
 - **Zero-Friction Autonomy**: Verifies safe operations execute without unnecessary user prompts.
 - **Multi-Modal Perception**: Verifies screen grounding, OCR, and visual verification pipelines.
 - **Compute Fabric & Failure Injection**: Tests resilience against node disconnection and heartbeat timeouts.
@@ -429,7 +465,7 @@ node tests/vlmPerception.test.js
 2. **Review Remembered Grants**:
    - In the **Permission Center**, review and revoke previously approved automated tool permissions at any time.
 3. **Emergency Stop**:
-   - Use the UI's Emergency Stop button or send `POST /api/override { "action": "stop" }` to instantly halt execution.
+   - Use the UI's Emergency Stop button, press <kbd>Esc</kbd>, or send `POST /api/override { "action": "stop" }` to instantly halt execution.
 
 ---
 

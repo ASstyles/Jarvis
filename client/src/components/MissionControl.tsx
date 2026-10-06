@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api";
 import { Activity, Play, Pause, XCircle, RotateCcw, CheckCircle2, AlertCircle, Clock, ShieldCheck, Cpu, ArrowRight } from "lucide-react";
 import { Mission } from "./MissionTracker";
 
@@ -30,10 +31,9 @@ export default function MissionControl({ activeMission, missionsList, autonomySc
 
   const fetchTasks = async () => {
     try {
-      const res = await fetch("http://localhost:4000/api/tasks");
-      if (res.ok) {
-        const data = await res.json();
-        setTasks(data.tasks || []);
+      const res = await fetchApi<{ tasks: BackgroundTask[] }>("/api/tasks");
+      if (res.ok && res.data) {
+        setTasks(res.data.tasks || []);
       }
     } catch (_) {}
   };
@@ -47,7 +47,7 @@ export default function MissionControl({ activeMission, missionsList, autonomySc
   const handleTaskAction = async (taskId: string, action: string) => {
     setLoading(true);
     try {
-      await fetch(`http://localhost:4000/api/tasks/${taskId}/${action}`, { method: "POST" });
+      await fetchApi(`/api/tasks/${taskId}/${action}`, { method: "POST" });
       await fetchTasks();
     } catch (_) {}
     setLoading(false);

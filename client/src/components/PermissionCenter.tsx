@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api";
 import {
   Shield, ShieldAlert, ShieldCheck, Lock, Zap, Bot, Eye, Terminal,
   Monitor, HardDrive, Globe, RefreshCw, CheckCircle2, XCircle, Plus, Trash2, Clock, AlertCircle
@@ -22,14 +23,13 @@ export default function PermissionCenter() {
 
   const fetchPermissions = async () => {
     try {
-      const res = await fetch("http://localhost:4000/api/permissions");
-      if (res.ok) {
-        const data = await res.json();
-        setCurrentMode(data.mode || "ZERO_FRICTION");
-        setPermissions(data.permissions || {});
-        setRememberedPermissions(data.rememberedPermissions || []);
-        setPending(data.pending || []);
-        setLogs(data.logs || []);
+      const res = await fetchApi<any>("/api/permissions");
+      if (res.ok && res.data) {
+        setCurrentMode(res.data.mode || "ZERO_FRICTION");
+        setPermissions(res.data.permissions || {});
+        setRememberedPermissions(res.data.rememberedPermissions || []);
+        setPending(res.data.pending || []);
+        setLogs(res.data.logs || []);
       }
     } catch (_) {}
   };
@@ -43,14 +43,12 @@ export default function PermissionCenter() {
   const handleModeChange = async (targetMode: string) => {
     setSaving(true);
     try {
-      const res = await fetch("http://localhost:4000/api/mode", {
+      const res = await fetchApi<{ mode: string }>("/api/mode", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: targetMode })
       });
-      if (res.ok) {
-        const data = await res.json();
-        setCurrentMode(data.mode);
+      if (res.ok && res.data) {
+        setCurrentMode(res.data.mode);
       }
     } catch (_) {}
     setSaving(false);
@@ -60,9 +58,8 @@ export default function PermissionCenter() {
     setSaving(true);
     try {
       const updated = { ...permissions, [key]: { ...permissions[key], ...newValues } };
-      await fetch("http://localhost:4000/api/permissions", {
+      await fetchApi("/api/permissions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updated)
       });
       setPermissions(updated);
@@ -72,9 +69,8 @@ export default function PermissionCenter() {
 
   const handleDecision = async (id: string, approved: boolean) => {
     try {
-      await fetch("http://localhost:4000/api/security/approve", {
+      await fetchApi("/api/security/approve", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, approved })
       });
       fetchPermissions();
@@ -84,9 +80,8 @@ export default function PermissionCenter() {
   const handleGrantPermission = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await fetch("http://localhost:4000/api/permissions/grant", {
+      await fetchApi("/api/permissions/grant", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           scope: newScope,
           action: newAction,
@@ -101,7 +96,7 @@ export default function PermissionCenter() {
 
   const handleRevokePermission = async (id: string) => {
     try {
-      await fetch(`http://localhost:4000/api/permissions/remembered/${id}`, {
+      await fetchApi(`/api/permissions/remembered/${id}`, {
         method: "DELETE"
       });
       fetchPermissions();

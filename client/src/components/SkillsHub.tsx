@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api";
 import { Sparkles, Play, Plus, CheckCircle2, Cpu, FileText, Code2, Rocket, Globe, GitBranch, BarChart3 } from "lucide-react";
 
 export default function SkillsHub() {
@@ -18,12 +19,11 @@ export default function SkillsHub() {
 
   const fetchSkills = async () => {
     try {
-      const res = await fetch("http://localhost:4000/api/skills");
-      if (res.ok) {
-        const data = await res.json();
-        setSkills(data.skills || []);
-        if (!selectedSkill && data.skills?.length > 0) {
-          setSelectedSkill(data.skills[0]);
+      const res = await fetchApi<{ skills: any[] }>("/api/skills");
+      if (res.ok && res.data) {
+        setSkills(res.data.skills || []);
+        if (!selectedSkill && res.data.skills?.length > 0) {
+          setSelectedSkill(res.data.skills[0]);
         }
       }
     } catch (_) {}
@@ -38,13 +38,11 @@ export default function SkillsHub() {
     setRunning(true);
     setRunResult(null);
     try {
-      const res = await fetch(`http://localhost:4000/api/skills/${selectedSkill.id}/run`, {
+      const res = await fetchApi(`/api/skills/${selectedSkill.id}/run`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ parameters: {} })
       });
-      const data = await res.json();
-      setRunResult(data);
+      setRunResult(res.data || { error: res.error });
     } catch (err: any) {
       setRunResult({ error: err.message });
     }
@@ -61,9 +59,8 @@ export default function SkillsHub() {
     }));
 
     try {
-      await fetch("http://localhost:4000/api/skills", {
+      await fetchApi("/api/skills", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: newName,
           description: newDesc,

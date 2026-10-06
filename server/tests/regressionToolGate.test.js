@@ -28,7 +28,7 @@ function runToolGateRegressionTests() {
   // Test 2: Gemini Tool Conversion Compatibility
   console.log("\n[TEST 2] Testing LangChain & Gemini Tool Binding across all 40 tools...");
   const model = new ChatGoogleGenerativeAI({
-    model: "gemini-2.5-flash",
+    model: "gemini-3.8-flash",
     apiKey: "dummy-key-for-binding-test"
   });
 

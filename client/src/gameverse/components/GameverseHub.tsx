@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api";
 import AchievementToast, { Achievement } from "./AchievementToast";
 import GameCardPreview from "./GameCardPreview";
 import GameLaunchModal from "./GameLaunchModal";
@@ -27,21 +28,19 @@ export default function GameverseHub() {
 
   const fetchProfile = async () => {
     try {
-      const res = await fetch("http://localhost:4000/api/gameverse/profile");
-      if (res.ok) {
-        const data = await res.json();
-        setProfile(data.profile || {});
-        setAllAchievements(data.achievements || []);
+      const res = await fetchApi<any>("/api/gameverse/profile");
+      if (res.ok && res.data) {
+        setProfile(res.data.profile || {});
+        setAllAchievements(res.data.achievements || []);
       }
     } catch (_) {}
   };
 
   const fetchLeaderboard = async (gameId: string) => {
     try {
-      const res = await fetch(`http://localhost:4000/api/gameverse/leaderboard/${gameId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setLeaderboard(data.leaderboard || []);
+      const res = await fetchApi<any>(`/api/gameverse/leaderboard/${gameId}`);
+      if (res.ok && res.data) {
+        setLeaderboard(res.data.leaderboard || []);
       }
     } catch (_) {}
   };
@@ -53,16 +52,14 @@ export default function GameverseHub() {
 
   const handleScoreSubmit = async (gameId: string, score: number, diff: string, stats: Record<string, unknown>) => {
     try {
-      const res = await fetch("http://localhost:4000/api/gameverse/score", {
+      const res = await fetchApi<any>("/api/gameverse/score", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gameId, score, difficulty: diff, stats })
       });
-      if (res.ok) {
-        const data = await res.json();
-        setProfile(data.profile);
-        if (data.newAchievements && data.newAchievements.length > 0) {
-          setToastAchievement(data.newAchievements[0]);
+      if (res.ok && res.data) {
+        setProfile(res.data.profile);
+        if (res.data.newAchievements && res.data.newAchievements.length > 0) {
+          setToastAchievement(res.data.newAchievements[0]);
           soundEngine.playLevelUp();
         }
       }

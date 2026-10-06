@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { fetchApi } from "@/lib/api";
 
 export type VoiceState =
   | "IDLE"
@@ -89,9 +90,8 @@ export function useWakeWord({ onWakeWord, onVoiceCommand, sensitivity = 0.65 }: 
             if (onWakeWord) onWakeWord(transcript);
 
             // Report to backend telemetry
-            fetch("http://localhost:4000/api/voice/wakeword", {
+            fetchApi("/api/voice/wakeword", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ phrase: transcript, source: "WebAudio_Local" })
             }).catch(() => {});
 
@@ -110,9 +110,8 @@ export function useWakeWord({ onWakeWord, onVoiceCommand, sensitivity = 0.65 }: 
           if (isStop || isPause || isResume || isRepeat || isSkip || isRestart || isRetry) {
             if (onVoiceCommand) onVoiceCommand(transcript);
 
-            fetch("http://localhost:4000/api/voice/command", {
+            fetchApi("/api/voice/command", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ command: transcript })
             }).catch(() => {});
           }
@@ -166,9 +165,8 @@ export function useWakeWord({ onWakeWord, onVoiceCommand, sensitivity = 0.65 }: 
       } else if (!next && streamRef.current) {
         streamRef.current.getTracks().forEach((t) => (t.enabled = true));
       }
-      fetch("http://localhost:4000/api/voice/mute", {
+      fetchApi("/api/voice/mute", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ muted: next })
       }).catch(() => {});
       return next;

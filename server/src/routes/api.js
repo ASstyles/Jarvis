@@ -27,6 +27,7 @@ const distributedFabric = require('../compute/distributedFabric');
 const path = require('path');
 const { documentExtractor } = require('../reading/documentExtractor');
 const { readingSessionManager } = require('../reading/readingSessionManager');
+const MODEL_CONFIG = require('../config/modelConfig');
 
 const router = express.Router();
 
@@ -436,6 +437,81 @@ router.post('/voice/mute', (req, res) => {
   res.json(result);
 });
 
+// Gemini 3.8 Live Voice Session Endpoint
+router.post('/voice/live/session', (req, res) => {
+  const { voice, systemInstruction } = req.body;
+  const geminiProvider = modelRouter.getProvider('gemini');
+  const sessionConfig = geminiProvider.createLiveSessionConfig({ voice, systemInstruction });
+  res.json({ success: true, session: sessionConfig });
+});
+
+// Gemini 3.8 Flash TTS Speech Synthesis Endpoint
+router.post('/voice/tts', async (req, res) => {
+  const { text, voice, speed } = req.body;
+  if (!text) return res.status(400).json({ error: "Text is required for TTS." });
+  const geminiProvider = modelRouter.getProvider('gemini');
+  const ttsPayload = await geminiProvider.synthesizeSpeech(text, { voice, speed });
+  res.json({ success: true, tts: ttsPayload });
+});
+
+// Natural Voice Interruption / Barge-In Endpoint
+router.post('/voice/interrupt', (req, res) => {
+  const { reason } = req.body;
+  if (readingSessionManager.getActiveSession()) {
+    readingSessionManager.stopSession(reason || 'User vocal interruption');
+  }
+  res.json({
+    success: true,
+    interrupted: true,
+    reason: reason || 'Barge-in',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Gemini 3.8 Central Model Configuration & Telemetry Endpoint
+router.get('/models/config', (req, res) => {
+  res.json({
+    config: MODEL_CONFIG,
+    telemetry: modelRouter.getStats()
+  });
+});
+
+// Gemini 3.8 Live Health Check & Credential Verification Endpoint
+router.get('/models/health', async (req, res) => {
+  const { credentialManager } = require('../security/credentialManager');
+  const geminiProvider = modelRouter.getProvider('gemini');
+  const diagnostics = credentialManager.getSafeDiagnostics();
+
+  let liveHandshake = null;
+  if (diagnostics.credentialConfigured) {
+    try {
+      const chat = geminiProvider.createChatInstance('gemini-3.8-flash', 0.1);
+      await chat.invoke("Ping");
+      credentialManager.recordVerificationOutcome(true);
+      liveHandshake = { success: true, model: 'gemini-3.8-flash', status: 'AUTHENTICATION_VERIFIED' };
+    } catch (err) {
+      credentialManager.recordVerificationOutcome(false, err);
+      const isAuthFail = err.message.includes('API_KEY_INVALID') || err.message.includes('API key not valid');
+      liveHandshake = {
+        success: false,
+        model: 'gemini-3.8-flash',
+        status: isAuthFail ? 'AUTHENTICATION_FAILED' : 'REQUEST_FAILED',
+        errorReason: isAuthFail ? 'API_KEY_INVALID' : err.message.substring(0, 160)
+      };
+    }
+  }
+
+  const updatedDiag = credentialManager.getSafeDiagnostics();
+  res.json({
+    provider: 'google',
+    model: 'gemini-3.8-flash',
+    ...updatedDiag,
+    handshake: liveHandshake,
+    status: updatedDiag.authenticationVerified ? 'healthy' : 'authentication_required'
+  });
+});
+
+
 // 16. JARVIS 3.0 Distributed Compute Fabric endpoints
 router.get('/compute/status', (req, res) => {
   res.json(distributedFabric.getClusterStatus());
@@ -552,6 +628,36 @@ router.get('/reading/documents', (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Camera Vision Capture Response from Client
+const { cameraVisionManager } = require('../vision/cameraVision');
+router.post('/camera/response', (req, res) => {
+  const { captureId, data, error, mimeType, frames } = req.body;
+  if (!captureId) return res.status(400).json({ error: 'captureId is required' });
+
+  cameraVisionManager.handleCaptureResponse(captureId, {
+    imageData: data,
+    mimeType,
+    frames,
+    error
+  });
+  res.json({ success: true });
+});
+
+// Browser Chrome Status Endpoint
+const { chromeBridge } = require('../browser/chromeBridge');
+router.get('/browser/status', async (req, res) => {
+  const status = await chromeBridge.checkStatus();
+  res.json(status);
+});
+
+// MCP Discovery Endpoint
+const { mcpManager } = require('../mcp/mcpManager');
+router.get('/mcp/servers', (req, res) => {
+  const configs = mcpManager.discoverConfigs();
+  const tools = mcpManager.getTools().map(t => ({ name: t.name, description: t.description }));
+  res.json({ servers: Object.keys(configs), tools });
 });
 
 module.exports = router;

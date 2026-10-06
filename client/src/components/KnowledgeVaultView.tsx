@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api";
 import { BookOpen, Search, Plus, Trash2, Tag, FileText, Code2, Globe, CheckCircle2 } from "lucide-react";
 
 export default function KnowledgeVaultView() {
@@ -18,10 +19,9 @@ export default function KnowledgeVaultView() {
 
   const fetchVault = async () => {
     try {
-      const res = await fetch("http://localhost:4000/api/vault");
-      if (res.ok) {
-        const data = await res.json();
-        setDocuments(data.documents || []);
+      const res = await fetchApi<{ documents: any[] }>("/api/vault");
+      if (res.ok && res.data) {
+        setDocuments(res.data.documents || []);
       }
     } catch (_) {}
   };
@@ -37,11 +37,9 @@ export default function KnowledgeVaultView() {
       return;
     }
     try {
-      const res = await fetch(`http://localhost:4000/api/vault/search?q=${encodeURIComponent(searchQuery)}`);
-      if (res.ok) {
-        const data = await res.json();
-        // Convert search results to document view
-        const matched = data.results || [];
+      const res = await fetchApi<{ results: any[] }>(`/api/vault/search?q=${encodeURIComponent(searchQuery)}`);
+      if (res.ok && res.data) {
+        const matched = res.data.results || [];
         setDocuments(matched.map((m: any) => ({
           id: m.id,
           title: m.title,
@@ -59,9 +57,8 @@ export default function KnowledgeVaultView() {
     if (!title || !content) return;
 
     try {
-      await fetch("http://localhost:4000/api/vault", {
+      await fetchApi("/api/vault", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
           content,
@@ -81,7 +78,7 @@ export default function KnowledgeVaultView() {
 
   const handleDelete = async (id: string) => {
     try {
-      await fetch(`http://localhost:4000/api/vault/${id}`, { method: "DELETE" });
+      await fetchApi(`/api/vault/${id}`, { method: "DELETE" });
       fetchVault();
     } catch (_) {}
   };

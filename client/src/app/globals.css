@@ -69,3 +69,342 @@
 .animate-pulse-glow {
   animation: pulse-glow 3s ease-in-out infinite;
 }
+
+/* ---------------------------------------------------------------------------
+   JARVIS 2.0 HUD, Boot, Diagnostics, Ignition & Gesture Styles
+   --------------------------------------------------------------------------- */
+
+:root {
+  --accent: #00f0ff;
+  --bg: #01060c;
+}
+
+/* Ignition start gate */
+.ignition {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at center, #04121c 0%, #01060c 80%);
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  color: #4fd6ff;
+}
+
+.ignition-ring {
+  position: absolute;
+  width: 240px;
+  height: 240px;
+  border: 1px solid rgba(79, 214, 255, 0.28);
+  border-top-color: rgba(79, 214, 255, 0.9);
+  border-radius: 50%;
+  animation: ignitionSpin 18s linear infinite;
+}
+
+@keyframes ignitionSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.ignition-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.ignition-word {
+  font-size: 16px;
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.52em;
+  text-indent: 0.52em;
+  text-shadow: 0 0 30px rgba(79, 214, 255, 0.7);
+}
+
+.ignition-sub {
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  opacity: 0.5;
+  text-transform: uppercase;
+}
+
+.ignition:hover .ignition-word {
+  text-shadow: 0 0 44px rgba(79, 214, 255, 1);
+}
+
+/* Boot sequence */
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: var(--bg);
+  color: var(--accent);
+  overflow: hidden;
+}
+
+.boot-bar {
+  position: absolute;
+  top: 10%;
+  left: 0;
+  right: 0;
+  padding: 0 min(9vw, 140px);
+  transition: opacity 0.6s ease, filter 0.6s ease;
+}
+
+.boot-bar-dim {
+  opacity: 0.28;
+  filter: blur(0.6px);
+}
+
+.boot-bar-frame {
+  position: relative;
+  border-top: 1.5px solid var(--accent);
+  border-bottom: 1.5px solid var(--accent);
+  padding: 14px 26px 12px;
+  clip-path: polygon(3% 0, 97% 0, 100% 42%, 97% 100%, 3% 100%, 0 42%);
+  box-shadow:
+    inset 0 0 40px rgba(0, 240, 255, 0.12),
+    0 0 30px rgba(0, 240, 255, 0.18);
+}
+
+.boot-bar-title {
+  display: inline-flex;
+  align-items: center;
+  font-family: ui-monospace, monospace;
+  font-size: clamp(18px, 3.4vw, 36px);
+  font-weight: 300;
+  letter-spacing: 0.14em;
+  color: #eafcff;
+  text-shadow: 0 0 26px rgba(0, 240, 255, 0.6);
+}
+
+.boot-dots { opacity: 0.6; margin: 0 0.2em; }
+.boot-cursor {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.05em;
+  margin-left: 0.15em;
+  background: var(--accent);
+  animation: bootBlink 0.7s steps(1) infinite;
+}
+@keyframes bootBlink { 50% { opacity: 0; } }
+
+.boot-seg { display: flex; gap: 3px; margin-top: 12px; }
+.boot-seg-cell {
+  flex: 1;
+  height: 10px;
+  border: 1px solid rgba(0, 240, 255, 0.45);
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+.boot-seg-cell[data-on='1'] {
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+}
+
+.boot-log {
+  margin-top: 14px;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1.8;
+  letter-spacing: 0.06em;
+  opacity: 0.7;
+}
+.boot-log-line { animation: bootLogIn 0.25s ease both; }
+.boot-log-line::before { content: '›  '; opacity: 0.5; }
+@keyframes bootLogIn { from { opacity: 0; transform: translateX(-8px); } }
+
+.boot-stage {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.boot-rings,
+.boot-suit,
+.boot-reactor {
+  width: min(58vmin, 500px);
+  height: min(58vmin, 500px);
+  overflow: visible;
+}
+
+.boot-ring {
+  fill: none;
+  stroke: var(--accent);
+  opacity: 0.8;
+  transform-box: fill-box;
+  transform-origin: center;
+  filter: drop-shadow(0 0 4px rgba(0, 240, 255, 0.5));
+}
+.boot-name {
+  fill: #eafcff;
+  font-family: ui-monospace, monospace;
+  font-size: 20px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.boot-wire {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.4;
+  opacity: 0.9;
+  filter: drop-shadow(0 0 3px rgba(0, 240, 255, 0.55));
+}
+.boot-wire-dim { opacity: 0.4; stroke-width: 1; }
+.boot-suit-fig { filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.4)); }
+.boot-tag {
+  fill: var(--accent);
+  opacity: 0.55;
+  font-family: ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-anchor: middle;
+}
+
+.boot-r-seg {
+  stroke: rgba(0, 240, 255, 0.3);
+  stroke-width: 8;
+}
+.boot-r-on { stroke: #dffbff; filter: drop-shadow(0 0 8px var(--accent)); }
+.boot-r-ring {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  opacity: calc(0.3 + var(--glow, 1) * 0.6);
+}
+.boot-r-ring-in { stroke-width: 1.5; opacity: calc(0.2 + var(--glow, 1) * 0.5); }
+.boot-r-tri {
+  fill: rgba(0, 240, 255, calc(var(--glow, 1) * 0.45));
+  stroke: #eafcff;
+  stroke-width: 3;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 calc(var(--glow, 1) * 26px) var(--accent));
+}
+.boot-r-tri-in {
+  fill: rgba(234, 252, 255, calc(var(--glow, 1) * 0.6));
+  stroke: none;
+}
+.boot-r-v {
+  fill: none;
+  stroke: #05161a;
+  stroke-width: 3.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  opacity: var(--glow, 1);
+}
+
+/* Diagnostics Panel */
+.diag {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 80;
+  width: min(26rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  padding: 0.85rem 1rem;
+  background: rgba(2, 10, 12, 0.95);
+  border: 1px solid var(--accent, #00f0ff);
+  border-radius: 4px;
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: #cfe6e3;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7), 0 0 20px rgba(0, 240, 255, 0.2);
+}
+
+.diag-head {
+  letter-spacing: 0.18em;
+  color: var(--accent, #00f0ff);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding-bottom: 0.4rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.diag-verdict {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.8rem;
+}
+
+.diag-sec {
+  margin: 0.7rem 0 0.3rem;
+  letter-spacing: 0.16em;
+  color: #6d8886;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 0.45rem;
+  font-size: 0.7rem;
+}
+
+.diag-row {
+  display: grid;
+  grid-template-columns: 8.5rem 1fr;
+  gap: 0.5rem;
+}
+
+.diag-k { color: #6d8886; }
+.diag-v { color: #cfe6e3; overflow-wrap: anywhere; }
+.diag-ok { color: #3ef2a8; }
+.diag-bad { color: #ff6b6b; }
+
+/* Hand overlay canvas */
+.hands-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  pointer-events: none;
+}
+
+/* Gesture guide card */
+.gguide {
+  position: fixed;
+  left: 22px;
+  bottom: 22px;
+  z-index: 76;
+  min-width: 240px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  background: rgba(2, 8, 14, 0.88);
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+  font-family: ui-monospace, monospace;
+}
+
+.gguide-head {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.gguide-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 11px;
+}
+
+.gguide-icon { width: 18px; font-size: 14px; line-height: 1; }
+.gguide-name {
+  width: 50px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.gguide-does { opacity: 0.75; font-size: 11px; }
+.gguide-foot {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(0, 240, 255, 0.18);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+

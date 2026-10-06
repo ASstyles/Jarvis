@@ -1,5 +1,6 @@
 const EventEmitter = require('events');
 const { speechSegmenter } = require('./speechSegmenter');
+const MODEL_CONFIG = require('../config/modelConfig');
 
 class ReadingSessionManager extends EventEmitter {
   constructor() {
@@ -23,6 +24,11 @@ class ReadingSessionManager extends EventEmitter {
       documentTitle: extractedDoc.title || 'Untitled Document',
       documentPath: extractedDoc.documentPath || '',
       fullText: extractedDoc.text,
+      // Distinguish TEXT EXTRACTED from TEXT ACTUALLY SPOKEN
+      textExtracted: extractedDoc.text,
+      textActuallySpoken: "",
+      extractionModel: extractedDoc.extractionModel || MODEL_CONFIG.GEMINI.DOCUMENT,
+      speechModel: MODEL_CONFIG.GEMINI.TTS,
       totalCharacters: extractedDoc.totalCharacters || extractedDoc.text.length,
       totalWords: extractedDoc.totalWords || (extractedDoc.text.match(/\S+/g) || []).length,
       totalSegments: segments.length,
@@ -86,6 +92,11 @@ class ReadingSessionManager extends EventEmitter {
       session.completedSegments = session.segments.filter(s => s.status === 'COMPLETED').length;
       session.currentWordOffset += segment.wordCount;
       session.currentCharacterOffset = segment.endCharOffset;
+      // Accumulate text actually spoken
+      session.textActuallySpoken = session.segments
+        .filter(s => s.status === 'COMPLETED')
+        .map(s => s.text)
+        .join(' ');
       if (session.currentSegment === segmentIndex && segmentIndex < session.totalSegments) {
         session.currentSegment = segmentIndex + 1;
       }
@@ -285,6 +296,11 @@ class ReadingSessionManager extends EventEmitter {
       sessionId: s.sessionId,
       documentId: s.documentId,
       documentTitle: s.documentTitle,
+      textExtractedLength: (s.textExtracted || s.fullText || '').length,
+      textActuallySpokenLength: (s.textActuallySpoken || '').length,
+      textActuallySpokenPreview: (s.textActuallySpoken || '').substring(0, 100),
+      extractionModel: s.extractionModel || 'gemini-3.8-flash',
+      speechModel: s.speechModel || 'gemini-3.8-flash-tts',
       totalWords: s.totalWords,
       totalCharacters: s.totalCharacters,
       totalSegments: s.totalSegments,
