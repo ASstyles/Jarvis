@@ -16,7 +16,7 @@
 [Features](#-key-capabilities) •
 [Architecture](#-system-architecture) •
 [Quick Start](#-quick-start) •
-[Tool Registry](#-tool-registry-25-built-in-tools) •
+[Tool Registry](#-tool-registry-54-validated-tools) •
 [API Reference](#-api-endpoints-reference) •
 [Operating Modes](#-operating-modes--governance) •
 [Tests](#-testing--quality-assurance)
@@ -35,7 +35,15 @@ Whether writing and debugging code in a sandbox, visually grounding UI elements 
 
 ## 🧠 Key Capabilities
 
-### 1. Multi-Agent Swarm & Goal Autopilot
+### 1. Canonical Google Gemini 3.8 Cognitive Core
+- **`gemini-3.8-flash` (Primary Intelligence Engine)**: Powers general reasoning, coding, web research, multi-phase planning, tool calling, and autonomous execution.
+- **`gemini-3.8-live` (Real-Time Voice Sessions)**: Native bidirectional low-latency audio interaction with vocal barge-in and conversational interrupts.
+- **`gemini-3.8-flash-tts` (Speech Synthesis & Narration)**: Expressive voice prosody and sentence-synchronized document narration.
+- **Transient High-Demand Auto-Retry**: Automated exponential backoff with jitter natively buffers temporary upstream Google cloud spikes (`503 Service Unavailable`, `429 Rate Limit`) without user disruption.
+- **Native Thinking & Reasoning Levels**: Supports configurable reasoning budgets (`low` for quick tool calling, `medium` for standard tasks and coding, `high` for deep architectural reasoning and planning).
+- **Hardened Model Adapter**: Strictly blocks deprecated or stale model IDs (`gemini-2.0-flash`, `gemini-1.5`, `gemini-2.5`) to enforce pure Gemini 3.8 architecture across the system.
+
+### 2. Multi-Agent Swarm & Goal Autopilot
 - **Master Orchestrator**: Coordinates sub-agents, delegates sub-tasks, and drives the autonomous execution loop.
 - **Specialized Sub-Agents**:
   - `Coding Agent`: Synthesizes, verifies, edits, and debugs code across projects.
@@ -44,7 +52,7 @@ Whether writing and debugging code in a sandbox, visually grounding UI elements 
   - `Parallel Task Runner`: Spawns concurrent asynchronous sub-agents for high-throughput operations.
 - **Goal Engine & Mission Tracker**: Deconstructs high-level directives into hierarchical sub-goals with live telemetry, progress monitoring, and instant pause/resume/cancel controls.
 
-### 2. Memory Matrix 2.0
+### 3. Memory Matrix 2.0
 - **5-Layer Memory Architecture**:
   - **Episodic**: History of past missions, events, and tool outcomes.
   - **Working Memory**: Active scratchpad and operational context for active tasks.
@@ -54,33 +62,33 @@ Whether writing and debugging code in a sandbox, visually grounding UI elements 
 - **Conflict Detection & Resolution**: Detects contradictory facts and resolves them via customizable strategies (`OVERWRITE`, `MERGE`, `USER_RESOLVE`).
 - **Importance Decay & Scoring**: Dynamically scores facts from 1 to 5 to prioritize critical user data.
 
-### 3. World Model & Real-Time SSE Event Bus
+### 4. World Model & Real-Time SSE Event Bus
 - **Continuous State Tracking**: Maintains live awareness of the user's active window, system resources, running processes, available tools, visual perception, and active missions.
 - **Server-Sent Events (SSE)**: Streams low-latency state changes, terminal outputs, tool execution logs, and audio events directly to the frontend dashboard.
 
-### 4. Visual Perception & Semantic Grounding (VLM 3.0)
+### 5. Visual Perception & Semantic Grounding (VLM 3.0)
 - **Visual Language Model (VLM)**: Deep screen understanding, UI inspection, and automated screenshot analysis.
 - **Semantic UI Grounding**: Locates and clicks buttons, input fields, and icons via descriptive queries rather than brittle hardcoded coordinates.
 - **OCR Engine**: Extracts text directly from screens, PDFs, and graphical assets.
 - **Visual Action Verification**: Captures before-and-after screen states to visually confirm that requested desktop actions succeeded.
 
-### 5. Natural Voice 2.0 & Offline Wake-Word Detection
+### 6. Natural Voice 2.0 & Offline Wake-Word Detection
 - **Offline Wake-Word Engine**: Instant, low-latency detection of the wake word **"JARVIS"** without cloud latency.
 - **Natural Interruption**: Speaking or triggering the wake word immediately halts agent speech for fluid conversation.
 - **Prosody & Pronunciation Engine**: Context-aware speech pacing, natural pauses, and phonetic enhancements.
 - **Acoustic Feedback**: Real-time microphone levels and dynamic holographic orb animations.
 
-### 6. Distributed Compute Fabric
+### 7. Distributed Compute Fabric
 - **Dynamic Worker Registry**: Register, monitor, and load-balance across local and remote compute nodes.
 - **GPU-Aware Job Scheduler**: Dispatches computational tasks based on priority, GPU requirements, and node availability.
 - **Heartbeat & Fault Tolerance**: Automatically detects lost workers and reschedules pending tasks.
 
-### 7. Verifiable Document Reading Engine
+### 8. Verifiable Document Reading Engine
 - **Sentence-Level Segmentation**: Splits documents into digestible, readable segments.
 - **Synchronized Audio-Text Telemetry**: Highlights text word-by-word in real time as the TTS engine plays.
 - **Interactive Reading HUD**: Play, pause, resume, skip, restart, or run completion verification.
 
-### 8. Gameverse Hub
+### 9. Gameverse Hub
 - An arcade and simulation suite built into JARVIS with an **AI Game Director**, physics engine, and dynamic procedural mechanics.
 - **Featured Games**: `BossProtocol`, `CyberHeist`, `JarvisCommand`, `VoidRunner`, `AIArena`, `Codebreak`, `JarvisTactics`, and `NeuralRush`.
 - **Gamer Profile**: Tracks player levels, achievements, and session XP.
@@ -136,9 +144,9 @@ graph TD
 
 ---
 
-## 🛠️ Tool Registry (25+ Built-In Tools)
+## 🛠️ Tool Registry (54 Validated Tools)
 
-JARVIS features a comprehensive tool registry validated for LangChain and Google Gemini function calling:
+JARVIS features a robust registry of 54 function-callable tools validated with strict Zod schemas, duplicate declaration checks, and zero-leak parameter enforcement for Google Gemini 3.8 and LangChain:
 
 | Category | Tool | Description |
 | :--- | :--- | :--- |
@@ -306,12 +314,13 @@ GEMINI_MODEL=gemini-3.8-flash
 Start the backend server:
 
 ```bash
-node src/index.js
+npm run dev
+# or: node src/index.js
 ```
 
 You should see:
 ```log
-[SYS] JARVIS 2.0 Autonomous AI Operating System online on port 4000
+[SYS] JARVIS 3.0 Unified Autonomous AI Operating System online on port 4000
 ```
 
 ### 4. Frontend Setup
@@ -335,9 +344,15 @@ Verify `client/.env.local`:
 NEXT_PUBLIC_SERVER_URL=http://localhost:4000
 ```
 
-*(Optional: Fill in your Firebase keys in `.env.local` if you want Google OAuth authentication enabled).*
+Verify your environment health:
 
-Start the Next.js development server:
+```bash
+npm run check-env
+```
+
+*(Expected output: `STATUS: HEALTHY - Environment is ready for development.`)*
+
+Start the Next.js development server (with Turbopack):
 
 ```bash
 npm run dev
@@ -434,20 +449,34 @@ To maintain total architectural transparency, here is the exact operational real
 
 ## 🧪 Testing & Quality Assurance
 
-JARVIS includes a comprehensive test suite across unit, integration, and security layers:
+JARVIS includes a comprehensive automated test suite across unit, integration, model routing, and security layers:
 
 ```bash
 cd server
 npm test
 ```
 
+*Runs all 4 test suites sequentially:*
+1. `tests/securityAndUpgrades.test.js` — Security policies, FSGuard, SSRF netProxy, VM sandbox, and Firebase token verification.
+2. `tests/sandbox.test.js` — Isolated sandbox creation, execution, and rollback.
+3. `tests/toolRegistry.test.js` — Registry verification, duplicate tool prevention, and Zod schema validation.
+4. `tests/gemini38Integration.test.js` — 49 comprehensive Gemini 3.8 architecture and resilience tests.
+
 ### Test Coverage Highlights:
+- **Gemini 3.8 Architecture & Resilience (`gemini38Integration.test.js` — 49 Tests)**:
+  - Enforces `gemini-3.8-flash` as primary cognitive engine across fast, reasoning, and coding tiers.
+  - Verifies `gemini-3.8-live` voice session configs and `gemini-3.8-flash-tts` speech synthesis.
+  - Active exclusion and blocking of legacy/stale models (`gemini-2.0-flash`, `gemini-1.5`, `gemini-2.5`).
+  - Strict Google thinking configuration isolation (`low`, `medium`, `high`) without metadata leakage.
+  - Exponential backoff retry handler verifies resilience against transient `503 Service Unavailable` and `429` spikes.
+  - Tool calling pipeline validation (54 registered tools, duplicate declaration rejection, and Zod parameter compliance).
+  - Live outbound payload verification and telemetry tracking.
 - **Security & Hardening Suite (`securityAndUpgrades.test.js`)**:
   - Traversal rejection (`../`, absolute paths outside workspace).
   - UNC path and Windows reserved device name protection (`CON`, `NUL`, `AUX`).
   - SSRF defense against loopback, RFC 1918, CGNAT, cloud metadata, and IPv4-mapped IPv6.
   - Worker thread + VM isolation and infinite loop termination.
-  - Capability policy risk assignment and mode transitions.
+  - Capability policy risk assignment and mode transitions (`ZERO_FRICTION`, `AUTONOMOUS`, `ASSISTED`).
   - Server-side Firebase JWT decoding and expiration validation.
   - Model router provider selection and failover.
 - **Zero-Friction Autonomy**: Verifies safe operations execute without unnecessary user prompts.
